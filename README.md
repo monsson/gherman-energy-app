@@ -1,87 +1,59 @@
-# Welcome to React Router!
+# Gherman Energy — Fleet & Drivers (prototip)
 
-A modern, production-ready template for building full-stack React applications using React Router.
+Aplicație mobile-first pentru gestionarea unei flote și a șoferilor — React
+Router 7 (SPA), Tailwind v4, date fictive.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
-
-## Features
-
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
+## Rulare locală
 
 ```bash
 npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+App-ul se deschide la `http://localhost:5173/gherman-energy-app/`.
 
-## Building for Production
+### Conturi demo (hardcodate)
 
-Create a production build:
+| Utilizator | Parolă | Rol                                |
+| ---------- | ------ | ---------------------------------- |
+| `fleet`    | `fleet`| Fleet Manager                      |
+| `sofer`    | `sofer`| Șofer (Andrei Popescu / mașina #1) |
+
+## Build pentru GitHub Pages
 
 ```bash
 npm run build
 ```
 
-## Deployment
+Rezultatul ajunge în `build/client/` — `index.html` plus un `404.html` identic
+ca să meargă rutarea client-side pe căi profunde. Conținutul folderului se urcă
+pe branch-ul `gh-pages` al repository-ului `gherman-energy-app`.
 
-### Docker Deployment
+Calea de bază este `/gherman-energy-app/`. Dacă schimbi numele repo-ului,
+actualizează în paralel `vite.config.ts` (`base`) și `react-router.config.ts`
+(`basename`).
 
-To build and run using Docker:
+### Deploy rapid
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+npm run build
+cd build/client
+git init
+git add .
+git commit -m "deploy"
+git push -f git@github.com:<user>/gherman-energy-app.git HEAD:gh-pages
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+## Date fictive
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
+Generate cu un LCG cu seed (`app/lib/data.ts`), deci stabile între reload-uri:
 
-### DIY Deployment
+- 10 mașini (5 mici + 5 utilitare)
+- 10 stații GE în Constanța
+- 6 luni de tranzacții, 1–3 alimentări/săptămână/mașină
+- 40–60 L/alimentare, 8–9 lei/L benzină, 9–10 lei/L motorină
+- numere CT-NN-AA, carduri 4 cifre, 10 șoferi
+- 3 mașini cu documente expirate (apar cu roșu)
 
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+Documentele „Talon" și „Asigurare" se descarcă ca PDF generat la runtime
+(`app/lib/pdf.ts`).
