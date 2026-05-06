@@ -1,5 +1,16 @@
-import { Link, Navigate } from "react-router";
-import { AppShell, Card, Section } from "~/components/AppShell";
+import { Navigate } from "react-router";
+import {
+  Badge,
+  Card,
+  Group,
+  Paper,
+  Progress,
+  Stack,
+  Text,
+  ThemeIcon,
+  Title,
+} from "@mantine/core";
+import { AppShell, Section } from "~/components/AppShell";
 import { CarCard } from "~/components/CarCard";
 import {
   cars,
@@ -23,37 +34,45 @@ export default function DriverDashboard() {
   const last3 = transactionsForDriver(driver.id).slice(0, 3);
   const top3 = topCheapStations();
   const limitPct = Math.min(100, Math.round((driver.used / driver.limit) * 100));
+  const medalColor = ["yellow.5", "gray.5", "orange.7"];
 
   return (
     <AppShell session={session} title={`Bună, ${driver.name.split(" ")[0]}`}>
       <Section title="Cardul meu">
-        <Card className="p-4 bg-gradient-to-br from-brand-700 via-brand-600 to-emerald-500 text-white">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="text-[11px] uppercase tracking-widest font-bold text-brand-100">
+        <Card
+          radius="lg"
+          padding="md"
+          c="white"
+          style={{
+            background:
+              "linear-gradient(135deg, var(--mantine-color-brand-7), var(--mantine-color-brand-6) 60%, var(--mantine-color-teal-5))",
+          }}
+        >
+          <Group justify="space-between" mb="lg">
+            <Stack gap={0}>
+              <Text size="10px" fw={700} tt="uppercase" c="brand.1" style={{ letterSpacing: "0.16em" }}>
                 GE Fleet Card
-              </div>
-              <div className="text-lg font-bold">{driver.name}</div>
-            </div>
-            <div className="text-2xl">💳</div>
-          </div>
-          <div className="font-mono text-xl tracking-widest">
+              </Text>
+              <Text fw={700} size="lg">
+                {driver.name}
+              </Text>
+            </Stack>
+            <Text fz={28}>💳</Text>
+          </Group>
+          <Text ff="monospace" fz={20} fw={500} style={{ letterSpacing: "0.2em" }}>
             •••• •••• •••• {driver.cardNumber}
-          </div>
-          <div className="mt-4">
-            <div className="flex justify-between text-xs font-semibold text-brand-100 mb-1">
-              <span>Limită lunară</span>
-              <span>
+          </Text>
+          <Stack gap={4} mt="md">
+            <Group justify="space-between">
+              <Text size="xs" fw={700} c="brand.1">
+                Limită lunară
+              </Text>
+              <Text size="xs" fw={700} c="brand.1">
                 {formatLei(driver.used)} / {formatLei(driver.limit)}
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-white/20 overflow-hidden">
-              <div
-                className="h-full bg-amber-300 rounded-full"
-                style={{ width: `${limitPct}%` }}
-              />
-            </div>
-          </div>
+              </Text>
+            </Group>
+            <Progress value={limitPct} color="yellow.4" radius="xl" size="sm" bg="rgba(255,255,255,0.2)" />
+          </Stack>
         </Card>
       </Section>
 
@@ -64,91 +83,114 @@ export default function DriverDashboard() {
       )}
 
       <Section title="Ultimele 3 alimentări">
-        <Card>
+        <Card withBorder padding={0} radius="lg" shadow="xs">
           {last3.length === 0 ? (
-            <p className="p-4 text-sm text-slate-500">Nicio alimentare încă.</p>
+            <Text p="md" size="sm" c="dimmed">
+              Nicio alimentare încă.
+            </Text>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {last3.map((t) => {
+            <Stack gap={0}>
+              {last3.map((t, i, arr) => {
                 const station = stations.find((s) => s.id === t.stationId)!;
                 return (
-                  <li key={t.id} className="p-3 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center text-lg">
+                  <Group
+                    key={t.id}
+                    wrap="nowrap"
+                    gap="sm"
+                    p="sm"
+                    style={{
+                      borderBottom:
+                        i === arr.length - 1
+                          ? "none"
+                          : "1px solid var(--mantine-color-gray-1)",
+                    }}
+                  >
+                    <ThemeIcon variant="light" color="brand" size={40} radius="md">
                       ⛽
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate">{station.name}</div>
-                      <div className="text-xs text-slate-500">
+                    </ThemeIcon>
+                    <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                      <Text size="sm" fw={600} truncate>
+                        {station.name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
                         {formatDateTime(t.date)} · {t.liters.toFixed(1)} L
-                      </div>
-                    </div>
-                    <div className="font-bold text-sm">{formatLei(t.total)}</div>
-                  </li>
+                      </Text>
+                    </Stack>
+                    <Text size="sm" fw={700}>
+                      {formatLei(t.total)}
+                    </Text>
+                  </Group>
                 );
               })}
-            </ul>
+            </Stack>
           )}
         </Card>
       </Section>
 
       <Section title="Top 3 prețuri în județ">
-        <div className="grid grid-cols-1 gap-2">
+        <Stack gap="xs">
           {top3.map((s, i) => (
-            <Card key={s.id} className="p-3 flex items-center gap-3">
-              <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-white ${
-                  i === 0 ? "bg-amber-500" : i === 1 ? "bg-slate-400" : "bg-amber-700"
-                }`}
-              >
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm truncate">{s.name}</div>
-                <div className="text-xs text-slate-500 truncate">{s.address}</div>
-              </div>
-              <div className="text-right text-xs">
-                <div>
-                  <span className="text-slate-500">B </span>
-                  <strong>{s.petrolPrice.toFixed(2)}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500">M </span>
-                  <strong>{s.dieselPrice.toFixed(2)}</strong>
-                </div>
-              </div>
-            </Card>
+            <Paper key={s.id} withBorder radius="lg" p="sm">
+              <Group wrap="nowrap" gap="sm">
+                <ThemeIcon variant="filled" color={medalColor[i] ?? "gray"} radius="xl" size={36}>
+                  <Text fw={800} c="white">
+                    {i + 1}
+                  </Text>
+                </ThemeIcon>
+                <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                  <Text size="sm" fw={700} truncate>
+                    {s.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" truncate>
+                    {s.address}
+                  </Text>
+                </Stack>
+                <Stack gap={2} align="end">
+                  <Badge variant="light" color="brand" size="xs">
+                    B {s.petrolPrice.toFixed(2)}
+                  </Badge>
+                  <Badge variant="light" color="orange" size="xs">
+                    M {s.dieselPrice.toFixed(2)}
+                  </Badge>
+                </Stack>
+              </Group>
+            </Paper>
           ))}
-        </div>
+        </Stack>
       </Section>
 
       <Section title="Promoții pentru tine">
-        <div className="space-y-2">
+        <Stack gap="xs">
           {promotions.map((p) => (
-            <Card key={p.id} className="p-3 flex items-start gap-3 border-l-4 border-l-amber-400">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-lg shrink-0">
-                🎁
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm">{p.title}</div>
-                <div className="text-xs text-slate-600">{p.detail}</div>
-                <div className="text-[11px] text-brand-700 font-semibold mt-1">
-                  la {p.stationName}
-                </div>
-              </div>
+            <Card
+              key={p.id}
+              withBorder
+              radius="lg"
+              padding="sm"
+              style={{ borderLeft: "4px solid var(--mantine-color-yellow-4)" }}
+            >
+              <Group wrap="nowrap" align="flex-start" gap="sm">
+                <ThemeIcon variant="light" color="yellow" size={40} radius="md">
+                  🎁
+                </ThemeIcon>
+                <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                  <Title order={6}>{p.title}</Title>
+                  <Text size="xs" c="gray.7">
+                    {p.detail}
+                  </Text>
+                  <Text size="11px" fw={700} c="brand.7" mt={2}>
+                    la {p.stationName}
+                  </Text>
+                </Stack>
+              </Group>
             </Card>
           ))}
-        </div>
+        </Stack>
       </Section>
 
-      <div className="mt-6">
-        <Link
-          to="/"
-          className="block text-center text-xs text-slate-400"
-          onClick={(e) => e.preventDefault()}
-        >
-          GE Fleet · prototip
-        </Link>
-      </div>
+      <Text ta="center" size="xs" c="gray.5" mt="lg">
+        GE Fleet · prototip
+      </Text>
     </AppShell>
   );
 }

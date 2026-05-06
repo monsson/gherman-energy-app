@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { Chip, Group, Stack, Text } from "@mantine/core";
 import { AppShell } from "~/components/AppShell";
 import { CarCard } from "~/components/CarCard";
 import { cars, carHasExpiredDoc } from "~/lib/data";
 import { useSession } from "./auth-layout";
 
+type Filter = "all" | "expired" | "small" | "utility";
+
 export default function ManagerCarsRoute() {
   const session = useSession();
-  const [filter, setFilter] = useState<"all" | "expired" | "small" | "utility">("all");
+  const [filter, setFilter] = useState<Filter>("all");
 
   const filtered = cars.filter((c) => {
     if (filter === "expired") return carHasExpiredDoc(c);
@@ -15,39 +18,29 @@ export default function ManagerCarsRoute() {
     return true;
   });
 
-  return (
-    <AppShell session={session} title="Toate mașinile">
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 mb-3">
-        {(
-          [
-            ["all", `Toate (${cars.length})`],
-            ["expired", `Expirate (${cars.filter(carHasExpiredDoc).length})`],
-            ["small", "Mici"],
-            ["utility", "Utilitare"],
-          ] as const
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setFilter(k)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-semibold border ${
-              filter === k
-                ? "bg-brand-600 text-white border-brand-600"
-                : "bg-white text-slate-700 border-slate-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+  const expiredCount = cars.filter(carHasExpiredDoc).length;
 
-      <div className="space-y-2">
+  return (
+    <AppShell session={session} title="Toate mașinile" back="/manager">
+      <Chip.Group multiple={false} value={filter} onChange={(v) => setFilter(v as Filter)}>
+        <Group gap="xs" wrap="nowrap" mb="md" style={{ overflowX: "auto" }}>
+          <Chip value="all" radius="xl">{`Toate (${cars.length})`}</Chip>
+          <Chip value="expired" radius="xl" color="red">{`Expirate (${expiredCount})`}</Chip>
+          <Chip value="small" radius="xl">Mici</Chip>
+          <Chip value="utility" radius="xl">Utilitare</Chip>
+        </Group>
+      </Chip.Group>
+
+      <Stack gap="xs">
         {filtered.map((c) => (
           <CarCard key={c.id} car={c} />
         ))}
         {filtered.length === 0 && (
-          <div className="text-center text-slate-400 py-12 text-sm">Nicio mașină în filtru.</div>
+          <Text ta="center" c="dimmed" py="xl" size="sm">
+            Nicio mașină în filtru.
+          </Text>
         )}
-      </div>
+      </Stack>
     </AppShell>
   );
 }

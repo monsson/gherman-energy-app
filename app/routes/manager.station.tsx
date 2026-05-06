@@ -1,5 +1,15 @@
 import { Link, useParams } from "react-router";
-import { AppShell, Card, Section } from "~/components/AppShell";
+import {
+  Anchor,
+  Card,
+  Group,
+  SimpleGrid,
+  Stack,
+  Text,
+  ThemeIcon,
+  Title,
+} from "@mantine/core";
+import { AppShell, Section } from "~/components/AppShell";
 import {
   cars,
   getStation,
@@ -16,7 +26,9 @@ export default function ManagerStation() {
   if (!station) {
     return (
       <AppShell session={session} title="Stație" back="/manager">
-        <p className="text-center text-slate-500 py-12">Stație inexistentă.</p>
+        <Text ta="center" c="dimmed" py="xl">
+          Stație inexistentă.
+        </Text>
       </AppShell>
     );
   }
@@ -27,72 +39,99 @@ export default function ManagerStation() {
 
   return (
     <AppShell session={session} title={station.name} back="/manager">
-      <Card className="p-4 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-3xl">
+      <Card withBorder radius="lg" padding="md" shadow="xs" mb="md">
+        <Group wrap="nowrap" gap="sm" mb="md">
+          <ThemeIcon variant="light" color="yellow" size={56} radius="md" style={{ fontSize: 28 }}>
             🏪
-          </div>
-          <div className="flex-1">
-            <h2 className="font-bold">{station.name}</h2>
-            <p className="text-sm text-slate-500">{station.address}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <div className="bg-slate-50 rounded-xl p-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500">
-              Benzină
-            </div>
-            <div className="text-lg font-extrabold">{station.petrolPrice.toFixed(2)} lei/L</div>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500">
-              Motorină
-            </div>
-            <div className="text-lg font-extrabold">{station.dieselPrice.toFixed(2)} lei/L</div>
-          </div>
-          <div className="bg-brand-600 text-white rounded-xl p-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-brand-100">
-              Total alimentări
-            </div>
-            <div className="text-lg font-extrabold">{formatLei(total)}</div>
-          </div>
-          <div className="bg-slate-900 text-white rounded-xl p-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-400">
-              Total litri
-            </div>
-            <div className="text-lg font-extrabold">{Math.round(liters)} L</div>
-          </div>
-        </div>
+          </ThemeIcon>
+          <Stack gap={0} style={{ flex: 1 }}>
+            <Title order={4}>{station.name}</Title>
+            <Text size="sm" c="dimmed">
+              {station.address}
+            </Text>
+          </Stack>
+        </Group>
+
+        <SimpleGrid cols={2} spacing="sm">
+          <Tile label="Benzină" value={`${station.petrolPrice.toFixed(2)} lei/L`} />
+          <Tile label="Motorină" value={`${station.dieselPrice.toFixed(2)} lei/L`} />
+          <Tile label="Total alimentări" value={formatLei(total)} bg="brand.6" fg="white" sub="brand.1" />
+          <Tile label="Total litri" value={`${Math.round(liters)} L`} bg="dark.7" fg="white" sub="gray.5" />
+        </SimpleGrid>
       </Card>
 
       <Section title={`Tranzacții la ${station.name} (${txs.length})`}>
-        <Card>
-          <ul className="divide-y divide-slate-100">
-            {txs.map((t) => {
+        <Card withBorder padding={0} radius="lg" shadow="xs">
+          <Stack gap={0}>
+            {txs.map((t, i, arr) => {
               const car = cars.find((c) => c.id === t.carId)!;
               return (
-                <li key={t.id}>
-                  <Link
-                    to={`/car/${car.id}`}
-                    className="p-3 flex items-center gap-3 active:bg-slate-50"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center text-lg">
+                <Anchor
+                  key={t.id}
+                  component={Link}
+                  to={`/car/${car.id}`}
+                  underline="never"
+                  c="inherit"
+                  style={{
+                    borderBottom:
+                      i === arr.length - 1
+                        ? "none"
+                        : "1px solid var(--mantine-color-gray-1)",
+                  }}
+                >
+                  <Group wrap="nowrap" gap="sm" p="sm">
+                    <ThemeIcon variant="light" color="brand" size={40} radius="md">
                       ⛽
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm">{car.plate}</div>
-                      <div className="text-xs text-slate-500">
+                    </ThemeIcon>
+                    <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                      <Text size="sm" fw={600}>
+                        {car.plate}
+                      </Text>
+                      <Text size="xs" c="dimmed">
                         {formatDateTime(t.date)} · {t.liters.toFixed(1)} L · {t.fuel}
-                      </div>
-                    </div>
-                    <div className="font-bold text-sm">{formatLei(t.total)}</div>
-                  </Link>
-                </li>
+                      </Text>
+                    </Stack>
+                    <Text size="sm" fw={700}>
+                      {formatLei(t.total)}
+                    </Text>
+                  </Group>
+                </Anchor>
               );
             })}
-          </ul>
+          </Stack>
         </Card>
       </Section>
     </AppShell>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  bg,
+  fg,
+  sub,
+}: {
+  label: string;
+  value: string;
+  bg?: string;
+  fg?: string;
+  sub?: string;
+}) {
+  return (
+    <Stack
+      gap={2}
+      p="sm"
+      bg={bg ?? "gray.0"}
+      c={fg}
+      style={{ borderRadius: 12 }}
+    >
+      <Text size="10px" fw={700} tt="uppercase" c={sub ?? "gray.6"} style={{ letterSpacing: "0.08em" }}>
+        {label}
+      </Text>
+      <Text fz={18} fw={800}>
+        {value}
+      </Text>
+    </Stack>
   );
 }

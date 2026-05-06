@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useOutletContext } from "react-router";
+import { Center, Loader } from "@mantine/core";
 import { getSession, type Session } from "~/lib/auth";
 
 type Ctx = { session: Session };
@@ -16,9 +17,9 @@ export default function AuthLayout() {
 
   if (!state.ready) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center text-slate-400 text-sm">
-        Se încarcă…
-      </div>
+      <Center mih="100dvh">
+        <Loader size="md" type="dots" />
+      </Center>
     );
   }
   if (!state.session) return <Navigate to="/" replace />;

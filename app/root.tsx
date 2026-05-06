@@ -6,8 +6,19 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
+import {
+  Button,
+  ColorSchemeScript,
+  Container,
+  MantineProvider,
+  mantineHtmlProps,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 
 import type { Route } from "./+types/root";
+import { theme } from "~/lib/theme";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -29,18 +40,21 @@ export function meta() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ro">
+    <html lang="ro" {...mantineHtmlProps}>
       <head>
         <meta charSet="utf-8" />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
         />
+        <ColorSchemeScript defaultColorScheme="light" />
         <Meta />
         <Links />
       </head>
       <body>
-        {children}
+        <MantineProvider theme={theme} defaultColorScheme="light">
+          {children}
+        </MantineProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -66,20 +80,29 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="min-h-screen p-6 flex flex-col items-center justify-center gap-3 text-center">
-      <h1 className="text-3xl font-bold">{message}</h1>
-      <p className="text-slate-600">{details}</p>
-      {stack && (
-        <pre className="w-full max-w-2xl mt-4 p-4 bg-slate-900 text-slate-100 text-xs rounded-lg overflow-x-auto text-left">
-          <code>{stack}</code>
-        </pre>
-      )}
-      <a
-        href="./"
-        className="mt-4 inline-block px-5 py-2 bg-brand-600 text-white rounded-lg font-semibold"
-      >
-        Înapoi la login
-      </a>
-    </main>
+    <Container size="sm" py="xl">
+      <Stack align="center" gap="md">
+        <Title order={1}>{message}</Title>
+        <Text c="dimmed" ta="center">
+          {details}
+        </Text>
+        {stack && (
+          <Text
+            component="pre"
+            ff="monospace"
+            size="xs"
+            p="md"
+            bg="dark.8"
+            c="gray.0"
+            style={{ width: "100%", overflowX: "auto", borderRadius: 12 }}
+          >
+            {stack}
+          </Text>
+        )}
+        <Button component="a" href="./" variant="filled">
+          Înapoi la login
+        </Button>
+      </Stack>
+    </Container>
   );
 }

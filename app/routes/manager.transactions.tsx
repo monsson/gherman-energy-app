@@ -1,5 +1,14 @@
 import { Link } from "react-router";
-import { AppShell, Card } from "~/components/AppShell";
+import {
+  Anchor,
+  Box,
+  Card,
+  Group,
+  Stack,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
+import { AppShell } from "~/components/AppShell";
 import { cars, stations, transactions } from "~/lib/data";
 import { formatDateTime, formatLei } from "~/lib/format";
 import { useSession } from "./auth-layout";
@@ -7,7 +16,6 @@ import { useSession } from "./auth-layout";
 export default function ManagerTransactions() {
   const session = useSession();
 
-  // Group by date.
   const groups = new Map<string, typeof transactions>();
   for (const t of transactions) {
     const day = new Date(t.date).toLocaleDateString("ro-RO", {
@@ -21,56 +29,71 @@ export default function ManagerTransactions() {
 
   return (
     <AppShell session={session} title="Tranzacții" back="/manager">
-      <div className="space-y-4">
+      <Stack gap="md">
         {[...groups.entries()].map(([day, items]) => {
           const dayTotal = items.reduce((s, t) => s + t.total, 0);
           return (
-            <div key={day}>
-              <div className="flex justify-between items-center px-1 mb-1">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">{day}</h3>
-                <span className="text-xs font-semibold text-slate-700">{formatLei(dayTotal)}</span>
-              </div>
-              <Card>
-                <ul className="divide-y divide-slate-100">
-                  {items.map((t) => {
+            <Box key={day}>
+              <Group justify="space-between" px={4} mb={6}>
+                <Text size="xs" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
+                  {day}
+                </Text>
+                <Text size="xs" fw={700}>
+                  {formatLei(dayTotal)}
+                </Text>
+              </Group>
+              <Card withBorder padding={0} radius="lg" shadow="xs">
+                <Stack gap={0}>
+                  {items.map((t, i, arr) => {
                     const car = cars.find((c) => c.id === t.carId)!;
                     const station = stations.find((s) => s.id === t.stationId)!;
                     return (
-                      <li key={t.id}>
-                        <Link
-                          to={`/car/${car.id}`}
-                          className="p-3 flex items-center gap-3 active:bg-slate-50"
-                        >
-                          <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center text-lg">
+                      <Anchor
+                        key={t.id}
+                        component={Link}
+                        to={`/car/${car.id}`}
+                        underline="never"
+                        c="inherit"
+                        style={{
+                          borderBottom:
+                            i === arr.length - 1
+                              ? "none"
+                              : "1px solid var(--mantine-color-gray-1)",
+                        }}
+                      >
+                        <Group wrap="nowrap" gap="sm" p="sm">
+                          <ThemeIcon variant="light" color="brand" size={40} radius="md">
                             ⛽
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm truncate">
+                          </ThemeIcon>
+                          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                            <Text size="sm" fw={600} truncate>
                               {car.plate} · {car.brand} {car.model}
-                            </div>
-                            <div className="text-xs text-slate-500 truncate">
+                            </Text>
+                            <Text size="xs" c="dimmed" truncate>
                               {station.name} · {t.fuel} · {t.liters.toFixed(1)} L
-                            </div>
-                            <div className="text-[10px] text-slate-400">
+                            </Text>
+                            <Text size="10px" c="gray.5">
                               {formatDateTime(t.date)}
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="font-bold text-sm">{formatLei(t.total)}</div>
-                            <div className="text-[11px] text-slate-500">
+                            </Text>
+                          </Stack>
+                          <Stack gap={0} align="end">
+                            <Text size="sm" fw={700}>
+                              {formatLei(t.total)}
+                            </Text>
+                            <Text size="11px" c="dimmed">
                               {t.pricePerLiter.toFixed(2)} lei/L
-                            </div>
-                          </div>
-                        </Link>
-                      </li>
+                            </Text>
+                          </Stack>
+                        </Group>
+                      </Anchor>
                     );
                   })}
-                </ul>
+                </Stack>
               </Card>
-            </div>
+            </Box>
           );
         })}
-      </div>
+      </Stack>
     </AppShell>
   );
 }

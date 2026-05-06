@@ -1,3 +1,5 @@
+import { Group, Stack, Text } from "@mantine/core";
+
 type Props = { size?: number; tone?: "dark" | "light" };
 
 export function Logo({ size = 56, tone = "dark" }: Props) {
@@ -28,19 +30,25 @@ export function Logo({ size = 56, tone = "dark" }: Props) {
 }
 
 export function LogoWordmark({ tone = "dark" }: { tone?: "dark" | "light" }) {
-  const text = tone === "dark" ? "text-brand-800" : "text-white";
-  const subtle = tone === "dark" ? "text-brand-600" : "text-brand-100";
+  const main = tone === "dark" ? "brand.8" : "white";
+  const sub = tone === "dark" ? "brand.6" : "brand.1";
   return (
-    <div className="flex items-center gap-3">
+    <Group gap="sm" wrap="nowrap">
       <Logo size={40} tone={tone} />
-      <div className="leading-tight">
-        <div className={`text-lg font-extrabold tracking-tight ${text}`}>
+      <Stack gap={0}>
+        <Text fw={800} c={main} size="md" lh={1.1}>
           Gherman Energy
-        </div>
-        <div className={`text-[11px] uppercase tracking-widest ${subtle}`}>
+        </Text>
+        <Text
+          size="10px"
+          fw={600}
+          c={sub}
+          tt="uppercase"
+          style={{ letterSpacing: "0.16em" }}
+        >
           Fleet & Drivers
-        </div>
-      </div>
-    </div>
+        </Text>
+      </Stack>
+    </Group>
   );
 }
