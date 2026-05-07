@@ -13,11 +13,13 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
+import { BarChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
 import {
   getCar,
   getDriver,
   isExpired,
+  monthlyAggregate,
   stations,
   transactionsForCar,
 } from "~/lib/data";
@@ -47,6 +49,7 @@ export default function CarDetail() {
   const totalSpend = txs.reduce((s, t) => s + t.total, 0);
   const totalKm = txs.reduce((s, t) => s + t.kmDriven, 0);
   const consumption = totalKm > 0 ? Math.round((totalLiters / totalKm) * 1000) / 10 : 0;
+  const monthly = monthlyAggregate(txs);
 
   function handleDownloadTalon() {
     if (!car) return;
@@ -149,6 +152,22 @@ export default function CarDetail() {
             <KV label="Distanță" value={`${totalKm.toLocaleString("ro-RO")} km`} />
             <KV label="Consum mediu" value={`${consumption} L/100km`} />
           </SimpleGrid>
+        </Card>
+      </Section>
+
+      <Section title="Consum mediu lunar (L/100km)">
+        <Card withBorder radius="lg" padding="md" shadow="xs">
+          <BarChart
+            h={200}
+            data={monthly.map((m) => ({ month: m.label, value: m.consumption }))}
+            dataKey="month"
+            series={[{ name: "value", label: "L/100km", color: "brand.6" }]}
+            withYAxis={false}
+            valueFormatter={(v) => `${v} L`}
+            withBarValueLabel
+            valueLabelProps={{ position: "inside", fill: "white", fontSize: 14 }}
+            barProps={{ radius: 6 }}
+          />
         </Card>
       </Section>
 
