@@ -55,7 +55,7 @@ export default function ManagerStation() {
         <SimpleGrid cols={2} spacing="sm">
           <Tile label="Benzină" value={`${station.petrolPrice.toFixed(2)} lei/L`} />
           <Tile label="Motorină" value={`${station.dieselPrice.toFixed(2)} lei/L`} />
-          <Tile label="Total alimentări" value={formatLei(total)} bg="brand.6" fg="white" sub="brand.1" />
+          <Tile label="Total alimentări" value={formatLei(total)} bg="dark.8" fg="white" sub="brand.3" />
           <Tile label="Total litri" value={`${Math.round(liters)} L`} bg="dark.7" fg="white" sub="gray.5" />
         </SimpleGrid>
       </Card>

@@ -48,19 +48,16 @@ export default function LoginRoute() {
       mih="100dvh"
       style={{
         background:
-          "linear-gradient(135deg, var(--mantine-color-brand-7), var(--mantine-color-brand-6) 60%, var(--mantine-color-teal-5))",
+          "linear-gradient(135deg, var(--mantine-color-dark-9), var(--mantine-color-dark-8) 55%, var(--mantine-color-brand-7))",
         display: "flex",
         flexDirection: "column",
       }}
     >
       <Center style={{ flex: 1 }} px="md" py="xl">
         <Container size={380} w="100%">
-          <Stack align="center" gap="xs" mb="xl" c="white" ta="center">
-            <Logo size={84} />
-            <Title order={1} c="white">
-              Gherman Energy
-            </Title>
-            <Text c="brand.1">Aplicație flotă & șoferi</Text>
+          <Stack align="center" gap="sm" mb="xl" c="white" ta="center">
+            <Logo size={96} />
+            <Text c="brand.2">Aplicație flotă & șoferi</Text>
           </Stack>
 
           <Paper radius="lg" shadow="xl" p="lg" component="form" onSubmit={submit}>
@@ -107,7 +104,7 @@ export default function LoginRoute() {
           </Paper>
         </Container>
       </Center>
-      <Text ta="center" size="xs" c="brand.1" pb="md">
+      <Text ta="center" size="xs" c="brand.2" pb="md">
         © Gherman Energy · Prototip
       </Text>
     </Box>

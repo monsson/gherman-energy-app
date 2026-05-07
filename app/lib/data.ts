@@ -62,7 +62,7 @@ export type Transaction = {
 };
 
 const DRIVER_NAMES = [
-  "Andrei Popescu",
+  "Marian Popescu",
   "Maria Ionescu",
   "Ion Vasile",
   "Cristian Stoica",

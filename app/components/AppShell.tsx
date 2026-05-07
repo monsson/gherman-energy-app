@@ -81,9 +81,9 @@ export function AppShell({
         style={{
           zIndex: 50,
           background:
-            "linear-gradient(135deg, var(--mantine-color-brand-7), var(--mantine-color-brand-6))",
+            "linear-gradient(135deg, var(--mantine-color-dark-9), var(--mantine-color-dark-8))",
           color: "white",
-          boxShadow: "0 6px 20px rgba(4, 120, 87, 0.18)",
+          boxShadow: "0 6px 20px rgba(29, 29, 29, 0.25)",
         }}
       >
         <Container size="sm" py="sm">
@@ -110,7 +110,7 @@ export function AppShell({
             <Button
               size="xs"
               variant="white"
-              color="brand.8"
+              color="dark.8"
               radius="md"
               onClick={() => {
                 logout();

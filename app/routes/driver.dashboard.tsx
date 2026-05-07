@@ -45,12 +45,12 @@ export default function DriverDashboard() {
           c="white"
           style={{
             background:
-              "linear-gradient(135deg, var(--mantine-color-brand-7), var(--mantine-color-brand-6) 60%, var(--mantine-color-teal-5))",
+              "linear-gradient(135deg, var(--mantine-color-dark-9), var(--mantine-color-dark-8) 55%, var(--mantine-color-brand-7))",
           }}
         >
           <Group justify="space-between" mb="lg">
             <Stack gap={0}>
-              <Text size="10px" fw={700} tt="uppercase" c="brand.1" style={{ letterSpacing: "0.16em" }}>
+              <Text size="10px" fw={700} tt="uppercase" c="brand.2" style={{ letterSpacing: "0.16em" }}>
                 GE Fleet Card
               </Text>
               <Text fw={700} size="lg">
@@ -64,14 +64,14 @@ export default function DriverDashboard() {
           </Text>
           <Stack gap={4} mt="md">
             <Group justify="space-between">
-              <Text size="xs" fw={700} c="brand.1">
+              <Text size="xs" fw={700} c="brand.2">
                 Limită lunară
               </Text>
-              <Text size="xs" fw={700} c="brand.1">
+              <Text size="xs" fw={700} c="brand.2">
                 {formatLei(driver.used)} / {formatLei(driver.limit)}
               </Text>
             </Group>
-            <Progress value={limitPct} color="yellow.4" radius="xl" size="sm" bg="rgba(255,255,255,0.2)" />
+            <Progress value={limitPct} color="brand.4" radius="xl" size="sm" bg="rgba(255,255,255,0.2)" />
           </Stack>
         </Card>
       </Section>
@@ -146,7 +146,7 @@ export default function DriverDashboard() {
                   </Text>
                 </Stack>
                 <Stack gap={2} align="end">
-                  <Badge variant="light" color="brand" size="xs">
+                  <Badge variant="light" color="brand" size="xs" c="dark.8">
                     B {s.petrolPrice.toFixed(2)}
                   </Badge>
                   <Badge variant="light" color="orange" size="xs">

@@ -174,7 +174,7 @@ export default function ManagerDashboard() {
                     </Text>
                   </Stack>
                   <Stack gap={0} align="end">
-                    <Badge variant="light" color="brand" size="xs">
+                    <Badge variant="light" color="brand" size="xs" c="dark.8">
                       B {s.petrolPrice.toFixed(2)}
                     </Badge>
                     <Badge variant="light" color="orange" size="xs">
@@ -205,14 +205,14 @@ function Stat({
       radius="lg"
       p="sm"
       withBorder={!accent}
-      bg={accent ? "brand.6" : undefined}
+      bg={accent ? "dark.8" : undefined}
       c={accent ? "white" : undefined}
     >
       <Text
         size="10px"
         fw={700}
         tt="uppercase"
-        c={accent ? "brand.1" : "gray.6"}
+        c={accent ? "brand.3" : "gray.6"}
         style={{ letterSpacing: "0.08em" }}
       >
         {label}

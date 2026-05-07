@@ -34,7 +34,7 @@ export function meta() {
   return [
     { title: "Gherman Energy — Fleet" },
     { name: "description", content: "Aplicație flotă & șoferi Gherman Energy" },
-    { name: "theme-color", content: "#047857" },
+    { name: "theme-color", content: "#1d1d1d" },
   ];
 }
 

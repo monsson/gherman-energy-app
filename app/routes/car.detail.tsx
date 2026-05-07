@@ -231,7 +231,7 @@ function DocRow({ label, date }: { label: string; date: string }) {
             </Text>
           </Stack>
         </Group>
-        <Badge variant="light" color={expired ? "red" : "brand"}>
+        <Badge variant="light" color={expired ? "red" : "brand"} c={expired ? undefined : "dark.8"}>
           {expired ? "Expirat" : "Valabil"}
         </Badge>
       </Group>
@@ -244,7 +244,7 @@ function KV({ label, value, accent }: { label: string; value: string; accent?: b
     <Stack
       gap={2}
       p="sm"
-      bg={accent ? "brand.6" : "gray.0"}
+      bg={accent ? "dark.8" : "gray.0"}
       c={accent ? "white" : undefined}
       style={{ borderRadius: 12 }}
     >
@@ -252,7 +252,7 @@ function KV({ label, value, accent }: { label: string; value: string; accent?: b
         size="10px"
         fw={700}
         tt="uppercase"
-        c={accent ? "brand.1" : "gray.6"}
+        c={accent ? "brand.3" : "gray.6"}
         style={{ letterSpacing: "0.08em" }}
       >
         {label}
