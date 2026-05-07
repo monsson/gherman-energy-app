@@ -56,7 +56,7 @@ export default function ManagerDashboard() {
             withYAxis={false}
             valueFormatter={(v) => `${v} L`}
             withBarValueLabel
-            valueLabelProps={{ position: 'inside', fill: 'white', fontSize: 18}}
+            valueLabelProps={{ position: 'inside', fill: 'white', fontSize: 18, fontWeight: 700 }}
             barProps={{ radius: 6 }}
           />
         </Card>
