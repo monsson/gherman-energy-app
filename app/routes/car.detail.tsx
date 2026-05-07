@@ -165,7 +165,7 @@ export default function CarDetail() {
             withYAxis={false}
             valueFormatter={(v) => `${v} L`}
             withBarValueLabel
-            valueLabelProps={{ position: "inside", fill: "white", fontSize: 14 }}
+            valueLabelProps={{ position: "inside", fill: "white", fontSize: 14, fontWeight: 700 }}
             barProps={{ radius: 6 }}
           />
         </Card>
