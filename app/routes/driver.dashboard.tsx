@@ -145,12 +145,12 @@ export default function DriverDashboard() {
                     {s.address}
                   </Text>
                 </Stack>
-                <Stack gap={2} align="end">
-                  <Badge variant="light" color="brand" size="xs" c="dark.8">
-                    B {s.petrolPrice.toFixed(2)}
+                <Stack gap={4} align="end">
+                  <Badge variant="filled" color="brand" size="md" radius="sm" c="dark.8">
+                    Benzină {s.petrolPrice.toFixed(2)} lei
                   </Badge>
-                  <Badge variant="light" color="orange" size="xs">
-                    M {s.dieselPrice.toFixed(2)}
+                  <Badge variant="filled" color="orange" size="md" radius="sm">
+                    Motorină {s.dieselPrice.toFixed(2)} lei
                   </Badge>
                 </Stack>
               </Group>
