@@ -37,6 +37,12 @@ const ICONS = {
       <circle cx="4" cy="18" r="1" />
     </svg>
   ),
+  receipt: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={22} height={22}>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+      <path d="M9 8h6M9 12h6M9 16h4" />
+    </svg>
+  ),
   user: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={22} height={22}>
       <circle cx="12" cy="8" r="4" />
@@ -54,6 +60,7 @@ const MANAGER_NAV: NavItem[] = [
   { to: "/manager", label: "Acasă", icon: ICONS.home },
   { to: "/manager/cars", label: "Mașini", icon: ICONS.cars },
   { to: "/manager/transactions", label: "Tranzacții", icon: ICONS.list },
+  { to: "/manager/receipts", label: "Facturi", icon: ICONS.receipt },
 ];
 
 const DRIVER_NAV: NavItem[] = [{ to: "/driver", label: "Acasă", icon: ICONS.home }];

@@ -61,6 +61,24 @@ export type Transaction = {
   odometer: number;
 };
 
+export type Receipt = {
+  id: string;
+  number: string; // human-readable invoice number, e.g., FAC-2026-0001
+  supplier: string;
+  supplierFiscalCode: string; // CUI
+  supplierAddress: string;
+  issueDate: string; // ISO
+  dueDate: string; // ISO
+  periodStart: string; // ISO date
+  periodEnd: string; // ISO date
+  transactionIds: string[];
+  liters: number;
+  subtotal: number; // without VAT
+  vat: number; // 19%
+  total: number;
+  status: "paid" | "unpaid";
+};
+
 const DRIVER_NAMES = [
   "Marian Popescu",
   "Maria Ionescu",
@@ -204,10 +222,89 @@ function buildTransactions(cars: Car[], stations: Station[]): Transaction[] {
   return txs;
 }
 
+type SupplierInfo = { supplier: string; fiscalCode: string; address: string };
+
+const SUPPLIERS: Record<string, SupplierInfo> = {
+  MOL: {
+    supplier: "MOL România Petroleum Products SRL",
+    fiscalCode: "RO11403726",
+    address: "Calea Dorobanți 239, București",
+  },
+  ROMPETROL: {
+    supplier: "Rompetrol Downstream SRL",
+    fiscalCode: "RO12751583",
+    address: "Piața Presei Libere 3-5, București",
+  },
+};
+
+function chainOf(stationName: string) {
+  return stationName.split(" ")[0].toUpperCase();
+}
+
+function buildReceipts(txs: Transaction[], stns: Station[]): Receipt[] {
+  // Group by supplier chain × month.
+  type Group = { chain: string; year: number; month: number; txs: Transaction[] };
+  const map = new Map<string, Group>();
+  for (const t of txs) {
+    const station = stns.find((s) => s.id === t.stationId);
+    if (!station) continue;
+    const chain = chainOf(station.name);
+    const d = new Date(t.date);
+    const key = `${chain}-${d.getFullYear()}-${d.getMonth()}`;
+    let g = map.get(key);
+    if (!g) {
+      g = { chain, year: d.getFullYear(), month: d.getMonth(), txs: [] };
+      map.set(key, g);
+    }
+    g.txs.push(t);
+  }
+
+  const groups = [...map.values()]
+    // Newest period first.
+    .sort((a, b) => b.year - a.year || b.month - a.month || a.chain.localeCompare(b.chain));
+
+  const today = new Date();
+  return groups.slice(0, 5).map((g, i): Receipt => {
+    const total = Math.round(g.txs.reduce((s, t) => s + t.total, 0) * 100) / 100;
+    const liters = Math.round(g.txs.reduce((s, t) => s + t.liters, 0) * 10) / 10;
+    const subtotal = Math.round((total / 1.19) * 100) / 100;
+    const vat = Math.round((total - subtotal) * 100) / 100;
+    // Issue on the 1st of the following month, due 30 days later.
+    const issue = new Date(g.year, g.month + 1, 1);
+    const due = addDays(issue, 30);
+    const periodStart = new Date(g.year, g.month, 1);
+    const periodEnd = new Date(g.year, g.month + 1, 0);
+    const meta = SUPPLIERS[g.chain] ?? {
+      supplier: g.chain,
+      fiscalCode: "RO00000000",
+      address: "-",
+    };
+    return {
+      id: `R${i + 1}`,
+      number: `FAC-${g.year}-${String(g.month + 1).padStart(2, "0")}-${g.chain.slice(0, 3)}`,
+      supplier: meta.supplier,
+      supplierFiscalCode: meta.fiscalCode,
+      supplierAddress: meta.address,
+      issueDate: isoDate(issue),
+      dueDate: isoDate(due),
+      periodStart: isoDate(periodStart),
+      periodEnd: isoDate(periodEnd),
+      transactionIds: g.txs.map((t) => t.id),
+      liters,
+      subtotal,
+      vat,
+      total,
+      // First two newest stay unpaid, rest paid — gives the UI both states.
+      status: i < 2 || issue > today ? "unpaid" : "paid",
+    };
+  });
+}
+
 export const drivers: Driver[] = buildDrivers();
 export const cars: Car[] = buildCars();
 export const stations: Station[] = buildStations();
 export const transactions: Transaction[] = buildTransactions(cars, stations);
+export const receipts: Receipt[] = buildReceipts(transactions, stations);
 
 // Compute "used" for each driver from this month's transactions.
 {
@@ -230,6 +327,13 @@ export function getDriver(id: number) {
 }
 export function getStation(id: number) {
   return stations.find((s) => s.id === id);
+}
+export function getReceipt(id: string) {
+  return receipts.find((r) => r.id === id);
+}
+export function transactionsForReceipt(receipt: Receipt) {
+  const set = new Set(receipt.transactionIds);
+  return transactions.filter((t) => set.has(t.id));
 }
 
 export function isExpired(dateStr: string) {
