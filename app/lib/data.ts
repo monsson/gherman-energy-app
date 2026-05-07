@@ -88,16 +88,16 @@ const CAR_MODELS: { brand: string; model: string; segment: "small" | "utility"; 
 ];
 
 const STATION_DATA: { name: string; address: string }[] = [
-  { name: "GE Mamaia", address: "Bd. Mamaia 220, Constanța" },
-  { name: "GE Tomis Nord", address: "Str. Soveja 88, Constanța" },
-  { name: "GE Constanța Sud", address: "Șos. Mangaliei 145, Constanța" },
-  { name: "GE Năvodari", address: "Bd. Mamaia-Sat 12, Năvodari" },
-  { name: "GE Mangalia", address: "Șos. Constanței 30, Mangalia" },
-  { name: "GE Eforie", address: "Bd. Republicii 2, Eforie Nord" },
-  { name: "GE Medgidia", address: "Str. Independenței 41, Medgidia" },
-  { name: "GE Cernavodă", address: "Str. Portului 7, Cernavodă" },
-  { name: "GE Ovidiu", address: "DN2A km 6, Ovidiu" },
-  { name: "GE Lazu", address: "DN39 km 10, Lazu" },
+  { name: "MOL Mamaia", address: "Bd. Mamaia 220, Constanța" },
+  { name: "ROMPETROL Tomis Nord", address: "Str. Soveja 88, Constanța" },
+  { name: "MOL Constanța Sud", address: "Șos. Mangaliei 145, Constanța" },
+  { name: "ROMPETROL Năvodari", address: "Bd. Mamaia-Sat 12, Năvodari" },
+  { name: "MOL Mangalia", address: "Șos. Constanței 30, Mangalia" },
+  { name: "ROMPETROL Eforie", address: "Bd. Republicii 2, Eforie Nord" },
+  { name: "ROMPETROL Medgidia", address: "Str. Independenței 41, Medgidia" },
+  { name: "MOL Cernavodă", address: "Str. Portului 7, Cernavodă" },
+  { name: "ROMPETROL Ovidiu", address: "DN2A km 6, Ovidiu" },
+  { name: "MOL Lazu", address: "DN39 km 10, Lazu" },
 ];
 
 const PLATE_LETTERS = ["AB", "CD", "EF", "GH", "JK", "LM", "NP", "QR", "ST", "VW"];
@@ -293,18 +293,18 @@ export const promotions: Promotion[] = [
     id: 1,
     title: "Cornuleț 7Days gratis",
     detail: "La orice alimentare cu cardul GE",
-    stationName: "GE Mamaia",
+    stationName: "MOL Mamaia",
   },
   {
     id: 2,
     title: "Lichid de parbriz 15 lei",
     detail: "Preț special, redus de la 20 lei",
-    stationName: "GE Tomis Nord",
+    stationName: "ROMPETROL Tomis Nord",
   },
   {
     id: 3,
     title: "Cafea + Apă plată 10 lei",
     detail: "Pauză rapidă pentru șoferi GE",
-    stationName: "GE Năvodari",
+    stationName: "ROMPETROL Năvodari",
   },
 ];
