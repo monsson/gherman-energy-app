@@ -106,16 +106,16 @@ const CAR_MODELS: { brand: string; model: string; segment: "small" | "utility"; 
 ];
 
 const STATION_DATA: { name: string; address: string }[] = [
-  { name: "MOL Mamaia", address: "Bd. Mamaia 220, Constanța" },
-  { name: "ROMPETROL Tomis Nord", address: "Str. Soveja 88, Constanța" },
-  { name: "MOL Constanța Sud", address: "Șos. Mangaliei 145, Constanța" },
-  { name: "ROMPETROL Năvodari", address: "Bd. Mamaia-Sat 12, Năvodari" },
-  { name: "MOL Mangalia", address: "Șos. Constanței 30, Mangalia" },
-  { name: "ROMPETROL Eforie", address: "Bd. Republicii 2, Eforie Nord" },
-  { name: "ROMPETROL Medgidia", address: "Str. Independenței 41, Medgidia" },
-  { name: "MOL Cernavodă", address: "Str. Portului 7, Cernavodă" },
-  { name: "ROMPETROL Ovidiu", address: "DN2A km 6, Ovidiu" },
-  { name: "MOL Lazu", address: "DN39 km 10, Lazu" },
+  { name: "MOL Mamaia", address: "Bulevardul Tomis 310D, 900407 Constanța" },
+  { name: "ROMPETROL Tomis Nord", address: "Bulevardul Alexandru Lăpușneanu 194A, 900472 Constanța" },
+  { name: "MOL Constanța Sud", address: "Bulevardul Tomis 310D, 900407 Constanța" },
+  { name: "ROMPETROL Năvodari", address: "Bulevardul Alexandru Lăpușneanu 194A, 900472 Constanța" },
+  { name: "MOL Mangalia", address: "Bulevardul Tomis 310D, 900407 Constanța" },
+  { name: "ROMPETROL Eforie", address: "Bulevardul Alexandru Lăpușneanu 194A, 900472 Constanța" },
+  { name: "ROMPETROL Medgidia", address: "Bulevardul Alexandru Lăpușneanu 194A, 900472 Constanța" },
+  { name: "MOL Cernavodă", address: "Bulevardul Tomis 310D, 900407 Constanța" },
+  { name: "ROMPETROL Ovidiu", address: "Bulevardul Alexandru Lăpușneanu 194A, 900472 Constanța" },
+  { name: "MOL Lazu", address: "Bulevardul Tomis 310D, 900407 Constanța" },
 ];
 
 const PLATE_LETTERS = ["AB", "CD", "EF", "GH", "JK", "LM", "NP", "QR", "ST", "VW"];
