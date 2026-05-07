@@ -149,43 +149,74 @@ export default function ManagerDashboard() {
       <Section title="Stații">
         <Card withBorder padding={0} radius="lg" shadow="xs">
           <Stack gap={0}>
-            {stations.map((s, i) => (
-              <Anchor
-                key={s.id}
-                component={Link}
-                to={`/manager/station/${s.id}`}
-                underline="never"
-                c="inherit"
-                style={{
-                  borderBottom:
-                    i === stations.length - 1
-                      ? "none"
-                      : "1px solid var(--mantine-color-gray-1)",
-                }}
-              >
-                <Group wrap="nowrap" gap="sm" p="sm">
-                  <ThemeIcon variant="light" color="yellow" size={40} radius="md">
-                    🏪
-                  </ThemeIcon>
-                  <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-                    <Text size="sm" fw={600} truncate>
-                      {s.name}
-                    </Text>
-                    <Text size="xs" c="dimmed" truncate>
-                      {s.address}
-                    </Text>
-                  </Stack>
+            {stations.map((s, i) => {
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}`;
+              return (
+                <Group
+                  key={s.id}
+                  wrap="nowrap"
+                  gap="sm"
+                  p="sm"
+                  style={{
+                    borderBottom:
+                      i === stations.length - 1
+                        ? "none"
+                        : "1px solid var(--mantine-color-gray-1)",
+                  }}
+                >
+                  <Anchor
+                    component={Link}
+                    to={`/manager/station/${s.id}`}
+                    underline="never"
+                    c="inherit"
+                    style={{ flex: 1, minWidth: 0 }}
+                  >
+                    <Group wrap="nowrap" gap="sm">
+                      <ThemeIcon variant="light" color="yellow" size={40} radius="md">
+                        🏪
+                      </ThemeIcon>
+                      <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                        <Text size="sm" fw={600} truncate>
+                          {s.name}
+                        </Text>
+                        <Text size="xs" c="dimmed" truncate>
+                          {s.address}
+                        </Text>
+                      </Stack>
+                    </Group>
+                  </Anchor>
                   <Stack gap={4} align="end">
-                    <Badge variant="filled" color="brand" size="md" radius="sm" c="dark.8">
+                    <Badge
+                      component="a"
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant="filled"
+                      color="brand"
+                      size="md"
+                      radius="sm"
+                      c="dark.8"
+                      style={{ cursor: "pointer" }}
+                    >
                       Benzină {s.petrolPrice.toFixed(2)} lei
                     </Badge>
-                    <Badge variant="filled" color="orange" size="md" radius="sm">
+                    <Badge
+                      component="a"
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant="filled"
+                      color="orange"
+                      size="md"
+                      radius="sm"
+                      style={{ cursor: "pointer" }}
+                    >
                       Motorină {s.dieselPrice.toFixed(2)} lei
                     </Badge>
                   </Stack>
                 </Group>
-              </Anchor>
-            ))}
+              );
+            })}
           </Stack>
         </Card>
       </Section>
