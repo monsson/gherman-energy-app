@@ -76,7 +76,7 @@ export default function ManagerStation() {
                     borderBottom:
                       i === arr.length - 1
                         ? "none"
-                        : "1px solid var(--mantine-color-gray-1)",
+                        : "1px solid var(--mantine-color-default-border)",
                   }}
                 >
                   <Group wrap="nowrap" gap="sm" p="sm">
@@ -122,9 +122,14 @@ function Tile({
     <Stack
       gap={2}
       p="sm"
-      bg={bg ?? "gray.0"}
+      bg={bg}
       c={fg}
-      style={{ borderRadius: 12 }}
+      style={{
+        borderRadius: 12,
+        background: bg
+          ? undefined
+          : "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-5))",
+      }}
     >
       <Text size="10px" fw={700} tt="uppercase" c={sub ?? "gray.6"} style={{ letterSpacing: "0.08em" }}>
         {label}

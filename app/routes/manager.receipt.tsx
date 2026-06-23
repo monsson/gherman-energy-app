@@ -191,7 +191,7 @@ export default function ManagerReceipt() {
                     borderBottom:
                       i === arr.length - 1
                         ? "none"
-                        : "1px solid var(--mantine-color-gray-1)",
+                        : "1px solid var(--mantine-color-default-border)",
                   }}
                 >
                   <ThemeIcon variant="light" color="brand" size={40} radius="md">
@@ -223,9 +223,13 @@ function KV({ label, value, accent }: { label: string; value: string; accent?: b
     <Stack
       gap={2}
       p="sm"
-      bg={accent ? "dark.8" : "gray.0"}
       c={accent ? "white" : undefined}
-      style={{ borderRadius: 12 }}
+      style={{
+        borderRadius: 12,
+        background: accent
+          ? "var(--mantine-color-dark-8)"
+          : "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-5))",
+      }}
     >
       <Text
         size="10px"

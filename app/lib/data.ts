@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from "react";
+
 // Seeded LCG so mock data stays stable across renders/reloads in the prototype.
 let _seed = 1337;
 function rng() {
@@ -306,10 +308,12 @@ export const stations: Station[] = buildStations();
 export const transactions: Transaction[] = buildTransactions(cars, stations);
 export const receipts: Receipt[] = buildReceipts(transactions, stations);
 
-// Compute "used" for each driver from this month's transactions.
-{
+// Recompute each driver's monthly spend ("used") from this month's transactions.
+// Called after any transaction is added so the card limit stays in sync.
+function recomputeUsed() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  for (const d of drivers) d.used = 0;
   for (const t of transactions) {
     if (t.date >= monthStart) {
       const d = drivers.find((x) => x.id === t.driverId);
@@ -317,6 +321,133 @@ export const receipts: Receipt[] = buildReceipts(transactions, stations);
     }
   }
   for (const d of drivers) d.used = Math.round(d.used * 100) / 100;
+}
+recomputeUsed();
+
+// ---------------------------------------------------------------------------
+// Mutable client-side store. There is no backend, so user-created cars and
+// fuel-ups are layered over the seed data and persisted to localStorage. The
+// seed arrays above are mutated in place so existing direct imports keep
+// working; components that need to react to changes use `useData()`.
+// ---------------------------------------------------------------------------
+const STORE_KEY = "ge.data.v1";
+
+let _version = 0;
+const _listeners = new Set<() => void>();
+
+function persist() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ cars, transactions, drivers }));
+  } catch {
+    // Ignore quota / serialization errors in the prototype.
+  }
+}
+
+function emit() {
+  _version++;
+  persist();
+  for (const l of _listeners) l();
+}
+
+function hydrate() {
+  if (typeof window === "undefined") return;
+  const raw = localStorage.getItem(STORE_KEY);
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw) as {
+      cars?: Car[];
+      transactions?: Transaction[];
+      drivers?: Driver[];
+    };
+    if (Array.isArray(data.cars)) cars.splice(0, cars.length, ...data.cars);
+    if (Array.isArray(data.transactions))
+      transactions.splice(0, transactions.length, ...data.transactions);
+    if (Array.isArray(data.drivers)) drivers.splice(0, drivers.length, ...data.drivers);
+  } catch {
+    // Corrupt store — fall back to the freshly generated seed.
+  }
+}
+hydrate();
+
+export function subscribe(listener: () => void) {
+  _listeners.add(listener);
+  return () => _listeners.delete(listener);
+}
+
+// Subscribe a component to store mutations. Returns a version counter; read the
+// exported arrays directly during render to get the current data.
+export function useData() {
+  return useSyncExternalStore(
+    subscribe,
+    () => _version,
+    () => 0,
+  );
+}
+
+export type CarInput = Omit<Car, "id">;
+
+export function addCar(input: CarInput): Car {
+  const id = cars.reduce((max, c) => Math.max(max, c.id), 0) + 1;
+  const car: Car = { ...input, id };
+  cars.push(car);
+  emit();
+  return car;
+}
+
+export function updateCar(id: number, patch: Partial<CarInput>): Car | undefined {
+  const car = cars.find((c) => c.id === id);
+  if (!car) return undefined;
+  Object.assign(car, patch);
+  emit();
+  return car;
+}
+
+export type TransactionInput = {
+  carId: number;
+  driverId: number;
+  stationId: number;
+  fuel: FuelType;
+  liters: number;
+  pricePerLiter: number;
+  kmDriven: number;
+  date?: string; // ISO; defaults to now
+};
+
+export function addTransaction(input: TransactionInput): Transaction {
+  const date = input.date ?? new Date().toISOString();
+  const total = Math.round(input.liters * input.pricePerLiter * 100) / 100;
+  // Continue the odometer from this car's most recent fill-up.
+  const prev = transactions
+    .filter((t) => t.carId === input.carId)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  const odometer = (prev?.odometer ?? 0) + input.kmDriven;
+
+  const tx: Transaction = {
+    id: `T${input.carId}-${date}-${transactions.length}`,
+    date,
+    carId: input.carId,
+    driverId: input.driverId,
+    stationId: input.stationId,
+    fuel: input.fuel,
+    liters: input.liters,
+    pricePerLiter: input.pricePerLiter,
+    total,
+    kmDriven: input.kmDriven,
+    odometer,
+  };
+  transactions.push(tx);
+  transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+  recomputeUsed();
+  emit();
+  return tx;
+}
+
+// The driver assigned to a given car, if any (used to auto-link a card to a
+// car when registering a fuel-up).
+export function driverForCar(carId: number) {
+  const car = cars.find((c) => c.id === carId);
+  return car ? drivers.find((d) => d.id === car.driverId) : undefined;
 }
 
 export function getCar(id: number) {
@@ -390,25 +521,3 @@ export function topCheapStations(): Station[] {
     .sort((a, b) => a.petrolPrice + a.dieselPrice - (b.petrolPrice + b.dieselPrice))
     .slice(0, 3);
 }
-
-export type Promotion = { id: number; title: string; detail: string; stationName: string };
-export const promotions: Promotion[] = [
-  {
-    id: 1,
-    title: "Cornuleț 7Days gratis",
-    detail: "La orice alimentare cu cardul GE",
-    stationName: "MOL Mamaia",
-  },
-  {
-    id: 2,
-    title: "Lichid de parbriz 15 lei",
-    detail: "Preț special, redus de la 20 lei",
-    stationName: "ROMPETROL Tomis Nord",
-  },
-  {
-    id: 3,
-    title: "Cafea + Apă plată 10 lei",
-    detail: "Pauză rapidă pentru șoferi GE",
-    stationName: "ROMPETROL Năvodari",
-  },
-];

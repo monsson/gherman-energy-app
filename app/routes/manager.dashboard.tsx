@@ -21,11 +21,13 @@ import {
   monthlyAggregate,
   stations,
   transactions,
+  useData,
 } from "~/lib/data";
 import { formatLei } from "~/lib/format";
 
 export default function ManagerDashboard() {
   const session = useSession();
+  useData(); // re-render when cars or fuel-ups change
   const monthly = monthlyAggregate(transactions);
 
   const totalSpend = transactions.reduce((s, t) => s + t.total, 0);
@@ -122,7 +124,7 @@ export default function ManagerDashboard() {
                   p="sm"
                   style={{
                     borderBottom:
-                      i === arr.length - 1 ? "none" : "1px solid var(--mantine-color-gray-1)",
+                      i === arr.length - 1 ? "none" : "1px solid var(--mantine-color-default-border)",
                   }}
                 >
                   <ThemeIcon variant="light" color="brand" size={40} radius="md">
@@ -161,7 +163,7 @@ export default function ManagerDashboard() {
                     borderBottom:
                       i === stations.length - 1
                         ? "none"
-                        : "1px solid var(--mantine-color-gray-1)",
+                        : "1px solid var(--mantine-color-default-border)",
                   }}
                 >
                   <Anchor

@@ -50,7 +50,7 @@ export default function ManagerReceipts() {
                   borderBottom:
                     i === arr.length - 1
                       ? "none"
-                      : "1px solid var(--mantine-color-gray-1)",
+                      : "1px solid var(--mantine-color-default-border)",
                 }}
               >
                 <Group wrap="nowrap" gap="sm" p="sm">

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Navigate } from "react-router";
 import {
   Badge,
+  Button,
   Card,
   Group,
   Paper,
@@ -8,23 +10,25 @@ import {
   Stack,
   Text,
   ThemeIcon,
-  Title,
 } from "@mantine/core";
 import { AppShell, Section } from "~/components/AppShell";
 import { CarCard } from "~/components/CarCard";
+import { TransactionForm } from "~/components/TransactionForm";
 import {
   cars,
   getDriver,
-  promotions,
   stations,
   topCheapStations,
   transactionsForDriver,
+  useData,
 } from "~/lib/data";
 import { formatDateTime, formatLei } from "~/lib/format";
 import { useSession } from "./auth-layout";
 
 export default function DriverDashboard() {
   const session = useSession();
+  useData(); // re-render when a fuel-up is added
+  const [txOpen, setTxOpen] = useState(false);
   if (!session.driverId) return <Navigate to="/" replace />;
 
   const driver = getDriver(session.driverId);
@@ -82,6 +86,17 @@ export default function DriverDashboard() {
         </Section>
       )}
 
+      <Button
+        size="md"
+        fullWidth
+        fw={700}
+        mb="lg"
+        leftSection={<span aria-hidden>⛽</span>}
+        onClick={() => setTxOpen(true)}
+      >
+        Alimentare nouă
+      </Button>
+
       <Section title="Ultimele 3 alimentări">
         <Card withBorder padding={0} radius="lg" shadow="xs">
           {last3.length === 0 ? (
@@ -102,7 +117,7 @@ export default function DriverDashboard() {
                       borderBottom:
                         i === arr.length - 1
                           ? "none"
-                          : "1px solid var(--mantine-color-gray-1)",
+                          : "1px solid var(--mantine-color-default-border)",
                     }}
                   >
                     <ThemeIcon variant="light" color="brand" size={40} radius="md">
@@ -159,38 +174,11 @@ export default function DriverDashboard() {
         </Stack>
       </Section>
 
-      <Section title="Promoții pentru tine">
-        <Stack gap="xs">
-          {promotions.map((p) => (
-            <Card
-              key={p.id}
-              withBorder
-              radius="lg"
-              padding="sm"
-              style={{ borderLeft: "4px solid var(--mantine-color-yellow-4)" }}
-            >
-              <Group wrap="nowrap" align="flex-start" gap="sm">
-                <ThemeIcon variant="light" color="yellow" size={40} radius="md">
-                  🎁
-                </ThemeIcon>
-                <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                  <Title order={6}>{p.title}</Title>
-                  <Text size="xs" c="gray.7">
-                    {p.detail}
-                  </Text>
-                  <Text size="11px" fw={700} c="brand.7" mt={2}>
-                    la {p.stationName}
-                  </Text>
-                </Stack>
-              </Group>
-            </Card>
-          ))}
-        </Stack>
-      </Section>
-
-      <Text ta="center" size="xs" c="gray.5" mt="lg">
-        GE Fleet · prototip
-      </Text>
+      <TransactionForm
+        session={session}
+        opened={txOpen}
+        onClose={() => setTxOpen(false)}
+      />
     </AppShell>
   );
 }

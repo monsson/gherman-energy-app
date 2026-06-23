@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import {
   Anchor,
@@ -15,6 +16,7 @@ import {
 } from "@mantine/core";
 import { BarChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
+import { CarForm } from "~/components/CarForm";
 import {
   getCar,
   getDriver,
@@ -22,6 +24,7 @@ import {
   monthlyAggregate,
   stations,
   transactionsForCar,
+  useData,
 } from "~/lib/data";
 import { formatDate, formatDateTime, formatLei } from "~/lib/format";
 import { downloadPdf } from "~/lib/pdf";
@@ -29,6 +32,8 @@ import { useSession } from "./auth-layout";
 
 export default function CarDetail() {
   const session = useSession();
+  useData(); // re-render after an edit
+  const [editOpen, setEditOpen] = useState(false);
   const { id } = useParams();
   const car = getCar(Number(id));
   const back = session.role === "manager" ? "/manager/cars" : "/driver";
@@ -128,6 +133,19 @@ export default function CarDetail() {
         )}
       </Card>
 
+      {session.role === "manager" && (
+        <Button
+          variant="light"
+          size="md"
+          fullWidth
+          mb="md"
+          leftSection={<span aria-hidden>✏️</span>}
+          onClick={() => setEditOpen(true)}
+        >
+          Editează mașina
+        </Button>
+      )}
+
       <Section title="Documente">
         <Stack gap="xs">
           <DocRow label="ITP" date={car.itp} />
@@ -201,7 +219,7 @@ export default function CarDetail() {
                 </Group>
               );
               const borderBottom =
-                i === arr.length - 1 ? "none" : "1px solid var(--mantine-color-gray-1)";
+                i === arr.length - 1 ? "none" : "1px solid var(--mantine-color-default-border)";
               return isManager ? (
                 <Anchor
                   key={t.id}
@@ -222,6 +240,8 @@ export default function CarDetail() {
           </Stack>
         </Card>
       </Section>
+
+      <CarForm car={car} opened={editOpen} onClose={() => setEditOpen(false)} />
     </AppShell>
   );
 }
@@ -263,9 +283,13 @@ function KV({ label, value, accent }: { label: string; value: string; accent?: b
     <Stack
       gap={2}
       p="sm"
-      bg={accent ? "dark.8" : "gray.0"}
       c={accent ? "white" : undefined}
-      style={{ borderRadius: 12 }}
+      style={{
+        borderRadius: 12,
+        background: accent
+          ? "var(--mantine-color-dark-8)"
+          : "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-5))",
+      }}
     >
       <Text
         size="10px"

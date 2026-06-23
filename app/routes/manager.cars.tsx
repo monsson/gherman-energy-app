@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { Chip, Group, Stack, Text } from "@mantine/core";
+import { Button, Chip, Group, Stack, Text } from "@mantine/core";
 import { AppShell } from "~/components/AppShell";
 import { CarCard } from "~/components/CarCard";
-import { cars, carHasExpiredDoc } from "~/lib/data";
+import { CarForm } from "~/components/CarForm";
+import { cars, carHasExpiredDoc, useData } from "~/lib/data";
 import { useSession } from "./auth-layout";
 
 type Filter = "all" | "expired" | "small" | "utility";
 
 export default function ManagerCarsRoute() {
   const session = useSession();
+  useData(); // re-render when a car is added or edited
   const [filter, setFilter] = useState<Filter>("all");
+  const [formOpen, setFormOpen] = useState(false);
 
   const filtered = cars.filter((c) => {
     if (filter === "expired") return carHasExpiredDoc(c);
@@ -22,6 +25,17 @@ export default function ManagerCarsRoute() {
 
   return (
     <AppShell session={session} title="Toate mașinile" back="/manager">
+      <Button
+        size="md"
+        fullWidth
+        fw={700}
+        mb="md"
+        leftSection={<span aria-hidden>＋</span>}
+        onClick={() => setFormOpen(true)}
+      >
+        Mașină nouă
+      </Button>
+
       <Chip.Group multiple={false} value={filter} onChange={(v) => setFilter(v as Filter)}>
         <Group gap="xs" wrap="nowrap" mb="md" style={{ overflowX: "auto" }}>
           <Chip value="all" radius="xl">{`Toate (${cars.length})`}</Chip>
@@ -41,6 +55,8 @@ export default function ManagerCarsRoute() {
           </Text>
         )}
       </Stack>
+
+      <CarForm opened={formOpen} onClose={() => setFormOpen(false)} />
     </AppShell>
   );
 }

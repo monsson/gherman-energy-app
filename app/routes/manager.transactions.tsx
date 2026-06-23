@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import {
   Anchor,
   Box,
+  Button,
   Card,
   Group,
   Stack,
@@ -9,12 +11,15 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { AppShell } from "~/components/AppShell";
-import { cars, stations, transactions } from "~/lib/data";
+import { TransactionForm } from "~/components/TransactionForm";
+import { cars, stations, transactions, useData } from "~/lib/data";
 import { formatDateTime, formatLei } from "~/lib/format";
 import { useSession } from "./auth-layout";
 
 export default function ManagerTransactions() {
   const session = useSession();
+  useData(); // re-render when a fuel-up is added
+  const [txOpen, setTxOpen] = useState(false);
 
   const groups = new Map<string, typeof transactions>();
   for (const t of transactions) {
@@ -29,6 +34,17 @@ export default function ManagerTransactions() {
 
   return (
     <AppShell session={session} title="Tranzacții" back="/manager">
+      <Button
+        size="md"
+        fullWidth
+        fw={700}
+        mb="md"
+        leftSection={<span aria-hidden>⛽</span>}
+        onClick={() => setTxOpen(true)}
+      >
+        Alimentare nouă
+      </Button>
+
       <Stack gap="md">
         {[...groups.entries()].map(([day, items]) => {
           const dayTotal = items.reduce((s, t) => s + t.total, 0);
@@ -58,7 +74,7 @@ export default function ManagerTransactions() {
                           borderBottom:
                             i === arr.length - 1
                               ? "none"
-                              : "1px solid var(--mantine-color-gray-1)",
+                              : "1px solid var(--mantine-color-default-border)",
                         }}
                       >
                         <Group wrap="nowrap" gap="sm" p="sm">
@@ -94,6 +110,12 @@ export default function ManagerTransactions() {
           );
         })}
       </Stack>
+
+      <TransactionForm
+        session={session}
+        opened={txOpen}
+        onClose={() => setTxOpen(false)}
+      />
     </AppShell>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import {
   ActionIcon,
@@ -5,11 +6,16 @@ import {
   Button,
   Container,
   Group,
+  Modal,
   Stack,
   Text,
   Title,
+  useComputedColorScheme,
+  useMantineColorScheme,
 } from "@mantine/core";
 import { LogoWordmark } from "./Logo";
+import { PasswordChangeForm } from "./PasswordChangeForm";
+import { CompanyFooter } from "./CompanyFooter";
 import { logout, type Session } from "~/lib/auth";
 
 type NavItem = { to: string; label: string; icon: React.ReactNode };
@@ -54,7 +60,36 @@ const ICONS = {
       <path d="M15 6l-6 6 6 6" />
     </svg>
   ),
+  sun: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={20} height={20}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  ),
+  moon: (
+    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width={20} height={20}>
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+    </svg>
+  ),
 };
+
+function ColorSchemeToggle() {
+  const { setColorScheme } = useMantineColorScheme();
+  const computed = useComputedColorScheme("light", { getInitialValueInEffect: true });
+  const isDark = computed === "dark";
+  return (
+    <ActionIcon
+      variant="subtle"
+      color="gray.0"
+      size="lg"
+      radius="md"
+      aria-label={isDark ? "Mod luminos" : "Mod întunecat"}
+      onClick={() => setColorScheme(isDark ? "light" : "dark")}
+    >
+      {isDark ? ICONS.sun : ICONS.moon}
+    </ActionIcon>
+  );
+}
 
 const MANAGER_NAV: NavItem[] = [
   { to: "/manager", label: "Acasă", icon: ICONS.home },
@@ -77,10 +112,18 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
+  const [accountOpen, setAccountOpen] = useState(false);
   const items = session.role === "manager" ? MANAGER_NAV : DRIVER_NAV;
 
   return (
-    <Box mih="100dvh" pb={88} bg="gray.0">
+    <Box
+      mih="100dvh"
+      pb={88}
+      style={{
+        background:
+          "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7))",
+      }}
+    >
       <Box
         component="header"
         pos="sticky"
@@ -114,18 +157,21 @@ export function AppShell({
             ) : (
               <LogoWordmark tone="light" />
             )}
-            <Button
-              size="xs"
-              variant="white"
-              color="dark.8"
-              radius="md"
-              onClick={() => {
-                logout();
-                navigate("/");
-              }}
-            >
-              Ieșire
-            </Button>
+            <Group gap="xs" wrap="nowrap">
+              <ColorSchemeToggle />
+              <Button
+                size="xs"
+                variant="white"
+                color="dark.8"
+                radius="md"
+                onClick={() => {
+                  logout();
+                  navigate("/");
+                }}
+              >
+                Ieșire
+              </Button>
+            </Group>
           </Group>
           {!back && (
             <Title order={2} c="white" mt="xs">
@@ -137,6 +183,7 @@ export function AppShell({
 
       <Container size="sm" py="md" component="main">
         {children}
+        <CompanyFooter />
       </Container>
 
       <Box
@@ -145,10 +192,10 @@ export function AppShell({
         bottom={0}
         left={0}
         right={0}
-        bg="white"
         style={{
           zIndex: 50,
-          borderTop: "1px solid var(--mantine-color-gray-2)",
+          background: "var(--mantine-color-body)",
+          borderTop: "1px solid var(--mantine-color-default-border)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
@@ -175,22 +222,48 @@ export function AppShell({
                 </Stack>
               </NavLink>
             ))}
-            <Stack
-              gap={2}
-              align="center"
-              justify="center"
-              py="sm"
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setAccountOpen(true)}
               c="gray.6"
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "10px 0",
+                color: "var(--mantine-color-gray-6)",
+              }}
             >
-              {ICONS.user}
-              <Text size="xs" fw={600} truncate maw={80}>
-                {session.username}
-              </Text>
-            </Stack>
+              <Stack gap={2} align="center" justify="center">
+                {ICONS.user}
+                <Text size="xs" fw={600} truncate maw={80}>
+                  {session.username}
+                </Text>
+              </Stack>
+            </Box>
           </Group>
         </Container>
       </Box>
+
+      <Modal
+        opened={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        title="Contul meu"
+        centered
+        radius="lg"
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Conectat ca <strong>{session.username}</strong>
+          </Text>
+          <Text size="xs" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
+            Schimbă parola
+          </Text>
+          <PasswordChangeForm username={session.username} />
+        </Stack>
+      </Modal>
     </Box>
   );
 }

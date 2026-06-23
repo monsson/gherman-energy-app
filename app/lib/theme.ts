@@ -1,17 +1,18 @@
 import { createTheme, type MantineColorsTuple } from "@mantine/core";
 
-// Brand palette: shades of #FAB516. Index 6 is the default primary shade.
+// Brand palette: shades of #FFC000, the official Gherman Energy gold taken from
+// the letterhead. Index 6 is the default primary shade.
 const brand: MantineColorsTuple = [
   "#fff8e1",
-  "#feedb6",
-  "#fde388",
-  "#fcd55b",
-  "#fbc93b",
-  "#fbc020",
-  "#fab516",
-  "#d9970c",
-  "#a87308",
-  "#785204",
+  "#ffecb3",
+  "#ffe082",
+  "#ffd54f",
+  "#ffca28",
+  "#ffc107",
+  "#ffc000",
+  "#e0a800",
+  "#b38600",
+  "#806000",
 ];
 
 // Neutral dark palette: shades of #1D1D1D. Used for headers, accents, and

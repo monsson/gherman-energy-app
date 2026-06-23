@@ -17,6 +17,7 @@ import {
 } from "@mantine/core";
 import { Logo } from "~/components/Logo";
 import { getSession, login } from "~/lib/auth";
+import { COMPANY } from "~/lib/company";
 
 export function meta() {
   return [{ title: "Login — Gherman Energy" }];
@@ -104,9 +105,14 @@ export default function LoginRoute() {
           </Paper>
         </Container>
       </Center>
-      <Text ta="center" size="xs" c="brand.2" pb="md">
-        © Gherman Energy · Prototip
-      </Text>
+      <Stack gap={2} align="center" pb="md" px="md">
+        <Text ta="center" size="xs" c="brand.2">
+          © {COMPANY.name} · {COMPANY.address}
+        </Text>
+        <Text ta="center" size="11px" c="brand.2" opacity={0.85}>
+          CUI {COMPANY.cui} · Reg. Com. {COMPANY.regCom} · {COMPANY.web}
+        </Text>
+      </Stack>
     </Box>
   );
 }
