@@ -164,9 +164,9 @@ export function AppShell({
                 variant="white"
                 color="dark.8"
                 radius="md"
-                onClick={() => {
-                  logout();
-                  navigate("/");
+                onClick={async () => {
+                  await logout();
+                  navigate("/", { replace: true });
                 }}
               >
                 Ieșire
@@ -256,7 +256,8 @@ export function AppShell({
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Conectat ca <strong>{session.username}</strong>
+            Conectat ca <strong>{session.name ?? session.username}</strong>
+            {session.partenerNume ? ` · ${session.partenerNume}` : ""}
           </Text>
           <Text size="xs" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
             Schimbă parola

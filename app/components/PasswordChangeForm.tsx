@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Alert, Button, PasswordInput, Stack } from "@mantine/core";
-import { changePassword } from "~/lib/auth";
+import { changePassword, MIN_PASSWORD_LENGTH } from "~/lib/auth";
 
 const MESSAGES: Record<string, string> = {
   "wrong-current": "Parola actuală este incorectă.",
-  "too-short": "Parola nouă trebuie să aibă cel puțin 4 caractere.",
+  "too-short": `Parola nouă trebuie să aibă cel puțin ${MIN_PASSWORD_LENGTH} caractere.`,
   "no-user": "Cont inexistent.",
+  expired: "Sesiunea a expirat. Autentifică-te din nou.",
+  error: "Parola nu a putut fi schimbată. Încearcă din nou.",
   mismatch: "Parolele nu coincid.",
 };
 
@@ -21,25 +23,31 @@ export function PasswordChangeForm({
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSuccess(false);
     if (next !== confirm) {
       setError(MESSAGES.mismatch);
       return;
     }
-    const result = changePassword(username, current, next);
-    if (result !== "ok") {
-      setError(MESSAGES[result] ?? "Eroare necunoscută.");
-      return;
+    setBusy(true);
+    try {
+      const result = await changePassword(username, current, next);
+      if (result !== "ok") {
+        setError(MESSAGES[result] ?? "Eroare necunoscută.");
+        return;
+      }
+      setError(null);
+      setSuccess(true);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      onDone?.();
+    } finally {
+      setBusy(false);
     }
-    setError(null);
-    setSuccess(true);
-    setCurrent("");
-    setNext("");
-    setConfirm("");
-    onDone?.();
   }
 
   return (
@@ -76,7 +84,7 @@ export function PasswordChangeForm({
             Parola a fost schimbată.
           </Alert>
         )}
-        <Button type="submit" fw={700}>
+        <Button type="submit" fw={700} loading={busy}>
           Salvează parola
         </Button>
       </Stack>

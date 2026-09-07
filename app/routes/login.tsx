@@ -16,32 +16,48 @@ import {
   Title,
 } from "@mantine/core";
 import { Logo } from "~/components/Logo";
-import { getSession, login } from "~/lib/auth";
+import { getSession, login, LoginError, type LoginErrorCode } from "~/lib/auth";
+import { API_ENABLED } from "~/lib/api";
 import { COMPANY } from "~/lib/company";
 
 export function meta() {
   return [{ title: "Login — Gherman Energy" }];
 }
 
+const LOGIN_ERRORS: Record<LoginErrorCode, string> = {
+  "bad-credentials": "Utilizator sau parolă incorecte.",
+  unreachable: "Serverul nu răspunde. Verifică conexiunea și încearcă din nou.",
+  forbidden: "Contul nu are acces la aplicația mobilă. Contactează administratorul.",
+  "not-pwa-user": "Contul nu are un rol de aplicație mobilă (șofer sau manager de flotă).",
+  unknown: "Autentificarea a eșuat. Încearcă din nou.",
+};
+
 export default function LoginRoute() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const s = getSession();
     if (s) navigate(s.role === "manager" ? "/manager" : "/driver", { replace: true });
   }, [navigate]);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const session = login(username, password);
-    if (!session) {
-      setError("Utilizator sau parolă incorecte.");
-      return;
+    setError(null);
+    setBusy(true);
+    try {
+      const session = await login(username, password);
+      navigate(session.role === "manager" ? "/manager" : "/driver", { replace: true });
+    } catch (err) {
+      setError(
+        err instanceof LoginError ? LOGIN_ERRORS[err.code] : LOGIN_ERRORS.unknown,
+      );
+    } finally {
+      setBusy(false);
     }
-    navigate(session.role === "manager" ? "/manager" : "/driver", { replace: true });
   }
 
   return (
@@ -65,10 +81,11 @@ export default function LoginRoute() {
             <Stack gap="md">
               <TextInput
                 label="Utilizator"
-                placeholder="ex: fleet"
+                placeholder={API_ENABLED ? "ex: sofer.test" : "ex: fleet"}
                 size="md"
                 value={username}
                 onChange={(e) => setUsername(e.currentTarget.value)}
+                disabled={busy}
                 autoCapitalize="none"
                 autoComplete="username"
                 required
@@ -78,6 +95,7 @@ export default function LoginRoute() {
                 size="md"
                 value={password}
                 onChange={(e) => setPassword(e.currentTarget.value)}
+                disabled={busy}
                 autoComplete="current-password"
                 required
               />
@@ -88,19 +106,23 @@ export default function LoginRoute() {
                 </Alert>
               )}
 
-              <Button type="submit" size="md" fullWidth fw={700}>
+              <Button type="submit" size="md" fullWidth fw={700} loading={busy}>
                 Intră în cont
               </Button>
 
-              <Divider label="Conturi demo" labelPosition="center" />
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  <Code>fleet / fleet</Code> — Fleet Manager
-                </Text>
-                <Text size="xs" c="dimmed">
-                  <Code>sofer / sofer</Code> — Șofer
-                </Text>
-              </Stack>
+              {!API_ENABLED && (
+                <>
+                  <Divider label="Conturi demo" labelPosition="center" />
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed">
+                      <Code>fleet / fleet</Code> — Fleet Manager
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      <Code>sofer / sofer</Code> — Șofer
+                    </Text>
+                  </Stack>
+                </>
+              )}
             </Stack>
           </Paper>
         </Container>
