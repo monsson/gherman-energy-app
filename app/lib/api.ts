@@ -205,6 +205,11 @@ async function validTokens(): Promise<Tokens> {
  * toate refuzurile de rol si toate erorile de validare, cu mesaj scris in romana pentru utilizator,
  * deci a-l pierde ar insemna sa aratam "Bad Request" in loc de "Doar un manager de flota are acces
  * la facturi.". Endpointul de token foloseste `error_description`, iar restul `message`.
+ *
+ * Exceptiile care **nu** sunt `@SupportedByClient` raman impachetate in `RemoteException` si ies ca
+ * `{"error":"Server error","details":""}` - un text englezesc, generic, pe care nu are rost sa il
+ * aratam unui utilizator. Pe acela il semnalam ca "fara mesaj folositor" (null), ca ecranul sa isi
+ * puna propria explicatie.
  */
 function mesajEroare(payload: any): string | null {
   if (Array.isArray(payload) && typeof payload[0]?.message === "string") {
@@ -256,7 +261,7 @@ export async function apiFetch<T>(
       clearTokens();
       throw new SessionExpiredError();
     }
-    const message = mesajEroare(payload) || res.statusText || "Eroare la server.";
+    const message = mesajEroare(payload) || "Eroare la server.";
     throw new ApiError(res.status, message);
   }
 

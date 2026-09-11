@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
+import { ApiError } from "~/lib/api";
 import { downloadInvoice, getInvoice, invoiceTransactions } from "~/lib/fleet";
 import { formatDate, formatDateTime, formatLei, formatLiters } from "~/lib/format";
 import { useResource } from "~/lib/useResource";
@@ -33,7 +34,13 @@ export default function ManagerReceipt() {
     try {
       await downloadInvoice(id);
     } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "PDF-ul nu a putut fi descărcat.");
+      // Generarea PDF-ului trece prin CUBA Reports, care randeaza un sablon .odt printr-un
+      // LibreOffice de pe server. Cand acela lipseste sau e prost configurat, exceptia nu e
+      // `@SupportedByClient`, deci vine un 500 fara mesaj - de aceea ecranul isi pune unul al lui.
+      const server = err instanceof ApiError && err.status !== 500 ? err.message : null;
+      setDownloadError(
+        server ?? "Serverul nu a putut genera PDF-ul facturii. Anunță administratorul.",
+      );
     } finally {
       setDownloading(false);
     }
