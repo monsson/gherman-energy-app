@@ -295,7 +295,9 @@ export async function changePassword(
       clearSession();
       return "expired";
     }
-    return "error";
+    // Restul erorilor pleaca mai departe ca `ApiError`: refuzurile de rol si validarile serverului
+    // vin cu mesaj scris in romana pentru utilizator, iar aici l-am pierde sub un "error" generic.
+    throw err;
   }
 }
 

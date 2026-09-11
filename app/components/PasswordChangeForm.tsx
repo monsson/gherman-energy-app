@@ -1,12 +1,13 @@
 import { useState } from "react";
+import { Navigate } from "react-router";
 import { Alert, Button, PasswordInput, Stack } from "@mantine/core";
+import { ApiError } from "~/lib/api";
 import { changePassword, MIN_PASSWORD_LENGTH } from "~/lib/auth";
 
 const MESSAGES: Record<string, string> = {
   "wrong-current": "Parola actuală este incorectă.",
   "too-short": `Parola nouă trebuie să aibă cel puțin ${MIN_PASSWORD_LENGTH} caractere.`,
   "no-user": "Cont inexistent.",
-  expired: "Sesiunea a expirat. Autentifică-te din nou.",
   error: "Parola nu a putut fi schimbată. Încearcă din nou.",
   mismatch: "Parolele nu coincid.",
 };
@@ -24,6 +25,7 @@ export function PasswordChangeForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [expired, setExpired] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,6 +37,12 @@ export function PasswordChangeForm({
     setBusy(true);
     try {
       const result = await changePassword(username, current, next);
+      if (result === "expired") {
+        // Sesiunea e deja stearsa de `changePassword`. Ca in `Async`, o sesiune expirata duce la
+        // login, nu la un mesaj pe care utilizatorul nu are ce sa faca cu el.
+        setExpired(true);
+        return;
+      }
       if (result !== "ok") {
         setError(MESSAGES[result] ?? "Eroare necunoscută.");
         return;
@@ -45,10 +53,17 @@ export function PasswordChangeForm({
       setNext("");
       setConfirm("");
       onDone?.();
+    } catch (err) {
+      // Refuzurile de rol si validarile serverului vin cu mesaj scris in romana pentru utilizator,
+      // deci se arata ca atare. Un 500 nu poarta decat un text generic, asa ca punem unul al nostru.
+      const server = err instanceof ApiError && err.status !== 500 ? err.message : null;
+      setError(server ?? MESSAGES.error);
     } finally {
       setBusy(false);
     }
   }
+
+  if (expired) return <Navigate to="/" replace state={{ expired: true }} />;
 
   return (
     <form onSubmit={submit}>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   Alert,
   Box,
@@ -32,12 +32,23 @@ const LOGIN_ERRORS: Record<LoginErrorCode, string> = {
   unknown: "Autentificarea a eșuat. Încearcă din nou.",
 };
 
+/**
+ * Ce a adus utilizatorul inapoi la login. Ecranele care ies din aplicatie pe o sesiune expirata
+ * (vezi `PasswordChangeForm`) o trimit prin `state`-ul navigarii, ca sa nu ajunga in URL si sa nu
+ * supravietuiasca unui refresh - la un reload nu mai e nimic de explicat.
+ */
+type LocationState = { expired?: boolean } | null;
+
+const EXPIRED_NOTICE = "Sesiunea a expirat. Autentifică-te din nou.";
+
 export default function LoginRoute() {
   const navigate = useNavigate();
+  const state = useLocation().state as LocationState;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(state?.expired ? EXPIRED_NOTICE : null);
 
   useEffect(() => {
     const s = getSession();
@@ -47,6 +58,7 @@ export default function LoginRoute() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
       const session = await login(username, password);
@@ -79,6 +91,11 @@ export default function LoginRoute() {
 
           <Paper radius="lg" shadow="xl" p="lg" component="form" onSubmit={submit}>
             <Stack gap="md">
+              {notice && (
+                <Alert color="orange" variant="light">
+                  {notice}
+                </Alert>
+              )}
               <TextInput
                 label="Utilizator"
                 placeholder={API_ENABLED ? "ex: sofer.test" : "ex: fleet"}
