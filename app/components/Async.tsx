@@ -1,6 +1,9 @@
 import { Navigate } from "react-router";
 import { Alert, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
+import type { LoginState } from "~/routes/login";
 import type { Resource } from "~/lib/useResource";
+
+const EXPIRAT: LoginState = { notice: "expired" };
 
 /**
  * Cele trei stari ale unei resurse, intr-un singur loc: se incarca, a esuat, e aici.
@@ -15,7 +18,7 @@ export function Async<T>({
   resource: Resource<T>;
   children: (data: T) => React.ReactNode;
 }) {
-  if (resource.expired) return <Navigate to="/" replace />;
+  if (resource.expired) return <Navigate to="/" replace state={EXPIRAT} />;
 
   if (resource.error) {
     return (

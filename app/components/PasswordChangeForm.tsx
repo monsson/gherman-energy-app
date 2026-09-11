@@ -3,6 +3,9 @@ import { Navigate } from "react-router";
 import { Alert, Button, PasswordInput, Stack } from "@mantine/core";
 import { ApiError } from "~/lib/api";
 import { changePassword, MIN_PASSWORD_LENGTH } from "~/lib/auth";
+import type { LoginState } from "~/routes/login";
+
+const EXPIRAT: LoginState = { notice: "expired" };
 
 const MESSAGES: Record<string, string> = {
   "wrong-current": "Parola actuală este incorectă.",
@@ -63,7 +66,7 @@ export function PasswordChangeForm({
     }
   }
 
-  if (expired) return <Navigate to="/" replace state={{ expired: true }} />;
+  if (expired) return <Navigate to="/" replace state={EXPIRAT} />;
 
   return (
     <form onSubmit={submit}>

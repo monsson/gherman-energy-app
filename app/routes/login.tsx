@@ -33,22 +33,34 @@ const LOGIN_ERRORS: Record<LoginErrorCode, string> = {
 };
 
 /**
- * Ce a adus utilizatorul inapoi la login. Ecranele care ies din aplicatie pe o sesiune expirata
- * (vezi `PasswordChangeForm`) o trimit prin `state`-ul navigarii, ca sa nu ajunga in URL si sa nu
- * supravietuiasca unui refresh - la un reload nu mai e nimic de explicat.
+ * De ce a ajuns utilizatorul pe login, cand nu a venit de bunavoie. Vine prin `state`-ul navigarii,
+ * nu prin URL: nu are ce cauta intr-un link si e bine ca dispare la un refresh - dupa un reload nu
+ * mai e nimic de explicat.
+ *
+ * - `expired` - sesiunea a picat sub utilizator: revalidarea din `auth-layout`, un ecran care
+ *   incarca date (`Async`) sau schimbarea parolei (`PasswordChangeForm`).
+ * - `sign-in-required` - un URL protejat deschis direct, fara sesiune (bookmark, link trimis).
  */
-type LocationState = { expired?: boolean } | null;
+export type LoginNotice = "expired" | "sign-in-required";
 
-const EXPIRED_NOTICE = "Sesiunea a expirat. Autentifică-te din nou.";
+/** Forma lui `state` pentru navigarile catre login. Cine redirectioneaza o construieste tipat. */
+export type LoginState = { notice: LoginNotice };
+
+const NOTICES: Record<LoginNotice, string> = {
+  expired: "Sesiunea a expirat. Autentifică-te din nou.",
+  "sign-in-required": "Autentifică-te pentru a continua.",
+};
 
 export default function LoginRoute() {
   const navigate = useNavigate();
-  const state = useLocation().state as LocationState;
+  const state = useLocation().state as Partial<LoginState> | null;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(state?.expired ? EXPIRED_NOTICE : null);
+  const [notice, setNotice] = useState<string | null>(
+    (state?.notice && NOTICES[state.notice]) ?? null,
+  );
 
   useEffect(() => {
     const s = getSession();
