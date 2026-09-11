@@ -16,262 +16,329 @@ import {
 } from "@mantine/core";
 import { BarChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
+import { Async } from "~/components/Async";
 import { CarForm } from "~/components/CarForm";
 import {
+  capabilities,
+  type CarDetail,
+  daysAgo,
+  FUEL_LABEL,
   getCar,
-  getDriver,
   isExpired,
-  monthlyAggregate,
-  stations,
-  transactionsForCar,
-  useData,
-} from "~/lib/data";
-import { formatDate, formatDateTime, formatLei } from "~/lib/format";
+  listTransactions,
+  monthlySummary,
+  SEGMENT_LABEL,
+} from "~/lib/fleet";
+import { formatDate, formatDateTime, formatLei, formatLiters, formatMonth } from "~/lib/format";
 import { downloadPdf } from "~/lib/pdf";
+import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
 
-export default function CarDetail() {
+export default function CarDetailRoute() {
   const session = useSession();
-  useData(); // re-render after an edit
+  const { id = "" } = useParams();
   const [editOpen, setEditOpen] = useState(false);
-  const { id } = useParams();
-  const car = getCar(Number(id));
   const back = session.role === "manager" ? "/manager/cars" : "/driver";
 
-  if (!car) {
-    return (
-      <AppShell session={session} title="Mașină" back={back}>
-        <Text ta="center" c="dimmed" py="xl">
-          Mașină inexistentă.
-        </Text>
-      </AppShell>
-    );
-  }
-
-  const driver = getDriver(car.driverId);
-  const txs = transactionsForCar(car.id);
-  const totalLiters = txs.reduce((s, t) => s + t.liters, 0);
-  const totalSpend = txs.reduce((s, t) => s + t.total, 0);
-  const totalKm = txs.reduce((s, t) => s + t.kmDriven, 0);
-  const consumption = totalKm > 0 ? Math.round((totalLiters / totalKm) * 1000) / 10 : 0;
-  const monthly = monthlyAggregate(txs);
-
-  function handleDownloadTalon() {
-    if (!car) return;
-    downloadPdf(
-      `talon-${car.plate}.pdf`,
-      "CERTIFICAT DE INMATRICULARE",
-      [
-        "(Document fictiv - prototip GE)",
-        "",
-        `Numar inmatriculare: ${car.plate}`,
-        `Marca: ${car.brand}`,
-        `Model: ${car.model}`,
-        `An fabricatie: ${car.year}`,
-        `Tip combustibil: ${car.fuel}`,
-        `Sofer asignat: ${driver?.name ?? "-"}`,
-        "",
-        "ITP valabil pana la: " + formatDate(car.itp),
-        "Detinator: GHERMAN ENERGY SRL",
-      ],
-    );
-  }
-
-  function handleDownloadInsurance() {
-    if (!car) return;
-    downloadPdf(
-      `asigurare-${car.plate}.pdf`,
-      "POLITA RCA",
-      [
-        "(Document fictiv - prototip GE)",
-        "",
-        `Numar inmatriculare: ${car.plate}`,
-        `Marca / Model: ${car.brand} ${car.model}`,
-        `Asigurat: GHERMAN ENERGY SRL`,
-        `Polita nr: GE-${String(car.id).padStart(6, "0")}`,
-        "",
-        "Valabila de la: " + formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString()),
-        "Valabila pana la: " + formatDate(car.rca),
-      ],
-    );
-  }
+  const car = useResource(() => getCar(id), [id]);
+  const summary = useResource(() => monthlySummary(id), [id]);
+  const txs = useResource(() => listTransactions({ carId: id, from: daysAgo(365) }), [id]);
 
   return (
-    <AppShell session={session} title={`${car.brand} ${car.model}`} back={back}>
-      <Card withBorder radius="lg" padding="md" shadow="xs" mb="md">
-        <Group wrap="nowrap" gap="sm">
-          <ThemeIcon variant="light" color="brand" size={80} radius="lg" style={{ fontSize: 44 }}>
-            {car.segment === "small" ? "🚗" : "🚐"}
-          </ThemeIcon>
-          <Stack gap={0} style={{ flex: 1 }}>
-            <Text size="10px" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
-              {car.segment === "small" ? "Autoturism mic" : "Utilitară mică"}
-            </Text>
-            <Title order={3}>
-              {car.brand} {car.model}
-            </Title>
-            <Text ff="monospace" c="gray.7">
-              {car.plate}
-            </Text>
-            <Text size="xs" c="dimmed">
-              An {car.year} · {car.fuel}
-            </Text>
-          </Stack>
-        </Group>
-        {driver && (
+    <AppShell session={session} title={car.data?.plate ?? "Mașină"} back={back}>
+      <Async resource={car}>
+        {(data) => (
           <>
-            <Divider my="sm" />
-            <Group justify="space-between">
-              <Text size="sm" c="dimmed">
-                Șofer
-              </Text>
-              <Text size="sm" fw={600}>
-                {driver.name} · card •••• {driver.cardNumber}
-              </Text>
-            </Group>
+            <Header car={data} />
+
+            {session.role === "manager" && (
+              <Button
+                variant="light"
+                size="md"
+                fullWidth
+                mb="md"
+                leftSection={<span aria-hidden>✏️</span>}
+                onClick={() => setEditOpen(true)}
+              >
+                Editează mașina
+              </Button>
+            )}
+
+            <Documents car={data} />
+
+            <Section title="Sumar 6 luni">
+              <Async resource={summary}>
+                {(months) => {
+                  const liters = months.reduce((s, m) => s + m.liters, 0);
+                  const km = months.reduce((s, m) => s + m.km, 0);
+                  const total = months.reduce((s, m) => s + m.total, 0);
+                  return (
+                    <Card withBorder radius="lg" padding="md" shadow="xs">
+                      <SimpleGrid cols={2} spacing="sm">
+                        <KV label="Total cheltuit" value={formatLei(total)} accent />
+                        <KV label="Total litri" value={formatLiters(liters)} />
+                        <KV label="Distanță" value={`${km.toLocaleString("ro-RO")} km`} />
+                        <KV
+                          label="Consum mediu"
+                          value={km > 0 ? `${Math.round((liters / km) * 1000) / 10} L/100km` : "—"}
+                        />
+                      </SimpleGrid>
+                    </Card>
+                  );
+                }}
+              </Async>
+            </Section>
+
+            <Section title="Consum mediu lunar (L/100km)">
+              <Async resource={summary}>
+                {(months) => (
+                  <Card withBorder radius="lg" padding="md" shadow="xs">
+                    <BarChart
+                      h={200}
+                      data={months.map((m) => ({ month: formatMonth(m.month), value: m.consumption }))}
+                      dataKey="month"
+                      series={[{ name: "value", label: "L/100km", color: "brand.6" }]}
+                      withYAxis={false}
+                      valueFormatter={(v) => `${v} L`}
+                      withBarValueLabel
+                      valueLabelProps={{ position: "inside", fill: "white", fontSize: 14, fontWeight: 700 }}
+                      barProps={{ radius: 6 }}
+                    />
+                  </Card>
+                )}
+              </Async>
+            </Section>
+
+            <Async resource={txs}>
+              {(list) => (
+                <Section title={`Alimentări, ultimul an (${list.length})`}>
+                  <Card withBorder padding={0} radius="lg" shadow="xs">
+                    {list.length === 0 ? (
+                      <Text p="md" size="sm" c="dimmed">
+                        Nicio alimentare în ultimul an.
+                      </Text>
+                    ) : (
+                      <Stack gap={0}>
+                        {list.map((t, i, arr) => {
+                          const borderBottom =
+                            i === arr.length - 1
+                              ? "none"
+                              : "1px solid var(--mantine-color-default-border)";
+                          const row = (
+                            <Group wrap="nowrap" gap="sm" p="sm">
+                              <ThemeIcon variant="light" color="brand" size={40} radius="md">
+                                ⛽
+                              </ThemeIcon>
+                              <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                                <Text size="sm" fw={600} truncate>
+                                  {t.stationName ?? "Stație necunoscută"}
+                                </Text>
+                                <Text size="xs" c="dimmed">
+                                  {t.date ? formatDateTime(t.date) : "—"}
+                                  {t.liters != null && ` · ${formatLiters(t.liters)}`}
+                                  {t.kmDriven != null && ` · ${t.kmDriven} km`}
+                                </Text>
+                              </Stack>
+                              <Stack gap={0} align="end">
+                                <Text size="sm" fw={700}>
+                                  {formatLei(t.total ?? 0)}
+                                </Text>
+                                {t.pricePerLiter != null && (
+                                  <Text size="11px" c="dimmed">
+                                    {t.pricePerLiter.toFixed(2)} lei/L
+                                  </Text>
+                                )}
+                              </Stack>
+                            </Group>
+                          );
+                          // Linkul exista doar cand importul a potrivit statia in nomenclator.
+                          return session.role === "manager" && t.stationId ? (
+                            <Anchor
+                              key={t.id}
+                              component={Link}
+                              to={`/manager/station/${t.stationId}`}
+                              underline="never"
+                              c="inherit"
+                              style={{ borderBottom }}
+                            >
+                              {row}
+                            </Anchor>
+                          ) : (
+                            <div key={t.id} style={{ borderBottom }}>
+                              {row}
+                            </div>
+                          );
+                        })}
+                      </Stack>
+                    )}
+                  </Card>
+                </Section>
+              )}
+            </Async>
+
+            <CarForm
+              car={data}
+              opened={editOpen}
+              onClose={() => setEditOpen(false)}
+              onSaved={car.reload}
+            />
           </>
         )}
-      </Card>
-
-      {session.role === "manager" && (
-        <Button
-          variant="light"
-          size="md"
-          fullWidth
-          mb="md"
-          leftSection={<span aria-hidden>✏️</span>}
-          onClick={() => setEditOpen(true)}
-        >
-          Editează mașina
-        </Button>
-      )}
-
-      <Section title="Documente">
-        <Stack gap="xs">
-          <DocRow label="ITP" date={car.itp} />
-          <DocRow label="RCA" date={car.rca} />
-          <DocRow label="Rovignetă" date={car.rovigneta} />
-        </Stack>
-        <SimpleGrid cols={2} spacing="xs" mt="sm">
-          <Button variant="default" size="md" onClick={handleDownloadTalon}>
-            📄 Talon
-          </Button>
-          <Button variant="default" size="md" onClick={handleDownloadInsurance}>
-            📑 Asigurare
-          </Button>
-        </SimpleGrid>
-      </Section>
-
-      <Section title="Sumar consum">
-        <Card withBorder radius="lg" padding="md" shadow="xs">
-          <SimpleGrid cols={2} spacing="sm">
-            <KV label="Total cheltuit" value={formatLei(totalSpend)} accent />
-            <KV label="Total litri" value={`${Math.round(totalLiters)} L`} />
-            <KV label="Distanță" value={`${totalKm.toLocaleString("ro-RO")} km`} />
-            <KV label="Consum mediu" value={`${consumption} L/100km`} />
-          </SimpleGrid>
-        </Card>
-      </Section>
-
-      <Section title="Consum mediu lunar (L/100km)">
-        <Card withBorder radius="lg" padding="md" shadow="xs">
-          <BarChart
-            h={200}
-            data={monthly.map((m) => ({ month: m.label, value: m.consumption }))}
-            dataKey="month"
-            series={[{ name: "value", label: "L/100km", color: "brand.6" }]}
-            withYAxis={false}
-            valueFormatter={(v) => `${v} L`}
-            withBarValueLabel
-            valueLabelProps={{ position: "inside", fill: "white", fontSize: 14, fontWeight: 700 }}
-            barProps={{ radius: 6 }}
-          />
-        </Card>
-      </Section>
-
-      <Section title={`Tranzacții (${txs.length})`}>
-        <Card withBorder padding={0} radius="lg" shadow="xs">
-          <Stack gap={0}>
-            {txs.map((t, i, arr) => {
-              const station = stations.find((s) => s.id === t.stationId)!;
-              const isManager = session.role === "manager";
-              const Row = (
-                <Group wrap="nowrap" gap="sm" p="sm">
-                  <ThemeIcon variant="light" color="brand" size={40} radius="md">
-                    ⛽
-                  </ThemeIcon>
-                  <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                    <Text size="sm" fw={600} truncate>
-                      {station.name}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {formatDateTime(t.date)} · {t.liters.toFixed(1)} L · {t.kmDriven} km
-                    </Text>
-                  </Stack>
-                  <Stack gap={0} align="end">
-                    <Text size="sm" fw={700}>
-                      {formatLei(t.total)}
-                    </Text>
-                    <Text size="11px" c="dimmed">
-                      {t.pricePerLiter.toFixed(2)} lei/L
-                    </Text>
-                  </Stack>
-                </Group>
-              );
-              const borderBottom =
-                i === arr.length - 1 ? "none" : "1px solid var(--mantine-color-default-border)";
-              return isManager ? (
-                <Anchor
-                  key={t.id}
-                  component={Link}
-                  to={`/manager/station/${station.id}`}
-                  underline="never"
-                  c="inherit"
-                  style={{ borderBottom }}
-                >
-                  {Row}
-                </Anchor>
-              ) : (
-                <div key={t.id} style={{ borderBottom }}>
-                  {Row}
-                </div>
-              );
-            })}
-          </Stack>
-        </Card>
-      </Section>
-
-      <CarForm car={car} opened={editOpen} onClose={() => setEditOpen(false)} />
+      </Async>
     </AppShell>
   );
 }
 
-function DocRow({ label, date }: { label: string; date: string }) {
+function Header({ car }: { car: CarDetail }) {
+  const details = [car.year && `An ${car.year}`, car.fuel && FUEL_LABEL[car.fuel]]
+    .filter(Boolean)
+    .join(" · ");
+  const name = [car.brand, car.model].filter((v) => v && v !== "-").join(" ");
+
+  return (
+    <Card withBorder radius="lg" padding="md" shadow="xs" mb="md">
+      <Group wrap="nowrap" gap="sm">
+        <ThemeIcon variant="light" color="brand" size={80} radius="lg" style={{ fontSize: 44 }}>
+          {car.segment === "autoutilitara" ? "🚐" : "🚗"}
+        </ThemeIcon>
+        <Stack gap={0} style={{ flex: 1 }}>
+          <Text size="10px" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
+            {car.segment ? SEGMENT_LABEL[car.segment] : "Segment necompletat"}
+          </Text>
+          <Title order={3} ff="monospace">
+            {car.plate}
+          </Title>
+          {name && <Text c="gray.7">{name}</Text>}
+          {details && (
+            <Text size="xs" c="dimmed">
+              {details}
+            </Text>
+          )}
+        </Stack>
+      </Group>
+      {car.driverName && (
+        <>
+          <Divider my="sm" />
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              Șofer
+            </Text>
+            <Text size="sm" fw={600}>
+              {car.driverName}
+              {car.driverCardMasked ? ` · card ${car.driverCardMasked}` : ""}
+            </Text>
+          </Group>
+        </>
+      )}
+      {car.limitLiters != null && (
+        <>
+          <Divider my="sm" />
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              Plafon lunar
+            </Text>
+            <Text size="sm" fw={600}>
+              {car.limitLiters <= 1
+                ? "Blocată la alimentare"
+                : `${formatLiters(car.usedLiters ?? 0)} / ${formatLiters(car.limitLiters)}`}
+            </Text>
+          </Group>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Documents({ car }: { car: CarDetail }) {
+  const canDownload = capabilities().hasCarDocuments;
+
+  function talon() {
+    downloadPdf(`talon-${car.plate}.pdf`, "CERTIFICAT DE INMATRICULARE", [
+      "(Document fictiv - prototip GE)",
+      "",
+      `Numar inmatriculare: ${car.plate}`,
+      `Marca: ${car.brand ?? "-"}`,
+      `Model: ${car.model ?? "-"}`,
+      `An fabricatie: ${car.year ?? "-"}`,
+      `Tip combustibil: ${car.fuel ? FUEL_LABEL[car.fuel] : "-"}`,
+      `Sofer asignat: ${car.driverName ?? "-"}`,
+      "",
+      `ITP valabil pana la: ${car.itp ? formatDate(car.itp) : "-"}`,
+      "Detinator: GHERMAN ENERGY SRL",
+    ]);
+  }
+
+  function insurance() {
+    downloadPdf(`asigurare-${car.plate}.pdf`, "POLITA RCA", [
+      "(Document fictiv - prototip GE)",
+      "",
+      `Numar inmatriculare: ${car.plate}`,
+      `Marca / Model: ${[car.brand, car.model].filter(Boolean).join(" ")}`,
+      "Asigurat: GHERMAN ENERGY SRL",
+      `Polita nr: GE-${car.id.slice(0, 8).toUpperCase()}`,
+      "",
+      `Valabila pana la: ${car.rca ? formatDate(car.rca) : "-"}`,
+    ]);
+  }
+
+  return (
+    <Section title="Documente">
+      <Stack gap="xs">
+        <DocRow label="ITP" date={car.itp} />
+        <DocRow label="RCA" date={car.rca} />
+        <DocRow label="Rovinietă" date={car.rovinieta} />
+      </Stack>
+      {canDownload && (
+        <SimpleGrid cols={2} spacing="xs" mt="sm">
+          <Button variant="default" size="md" onClick={talon}>
+            📄 Talon
+          </Button>
+          <Button variant="default" size="md" onClick={insurance}>
+            📑 Asigurare
+          </Button>
+        </SimpleGrid>
+      )}
+    </Section>
+  );
+}
+
+/** Trei stari, nu doua: valabil, expirat si necunoscut - o data lipsa nu inseamna expirata. */
+function DocRow({ label, date }: { label: string; date?: string }) {
+  const missing = !date;
   const expired = isExpired(date);
+
   return (
     <Paper
       withBorder
       radius="lg"
       p="sm"
-      bg={expired ? "red.0" : undefined}
       style={{ borderColor: expired ? "var(--mantine-color-red-3)" : undefined }}
     >
       <Group justify="space-between" wrap="nowrap">
         <Group wrap="nowrap" gap="sm">
-          <ThemeIcon variant="light" color={expired ? "red" : "brand"} size={36} radius="md">
-            <Text fw={800}>{expired ? "!" : "✓"}</Text>
+          <ThemeIcon
+            variant="light"
+            color={expired ? "red" : missing ? "gray" : "brand"}
+            size={36}
+            radius="md"
+          >
+            <Text fw={800}>{expired ? "!" : missing ? "?" : "✓"}</Text>
           </ThemeIcon>
           <Stack gap={0}>
             <Text size="10px" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
               {label}
             </Text>
-            <Text fw={700} c={expired ? "red.7" : undefined}>
-              {formatDate(date)}
+            <Text fw={700} c={expired ? "red.7" : missing ? "dimmed" : undefined}>
+              {date ? formatDate(date) : "Necompletat"}
             </Text>
           </Stack>
         </Group>
-        <Badge variant="light" color={expired ? "red" : "brand"} c={expired ? undefined : "dark.8"}>
-          {expired ? "Expirat" : "Valabil"}
+        <Badge
+          variant="light"
+          color={expired ? "red" : missing ? "gray" : "brand"}
+          c={expired || missing ? undefined : "dark.8"}
+        >
+          {expired ? "Expirat" : missing ? "Necunoscut" : "Valabil"}
         </Badge>
       </Group>
     </Paper>

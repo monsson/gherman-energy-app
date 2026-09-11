@@ -94,7 +94,7 @@ function ColorSchemeToggle() {
 const MANAGER_NAV: NavItem[] = [
   { to: "/manager", label: "Acasă", icon: ICONS.home },
   { to: "/manager/cars", label: "Mașini", icon: ICONS.cars },
-  { to: "/manager/transactions", label: "Tranzacții", icon: ICONS.list },
+  { to: "/manager/transactions", label: "Alimentări", icon: ICONS.list },
   { to: "/manager/receipts", label: "Facturi", icon: ICONS.receipt },
 ];
 

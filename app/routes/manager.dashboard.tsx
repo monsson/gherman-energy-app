@@ -2,7 +2,6 @@ import { Link } from "react-router";
 import {
   Alert,
   Anchor,
-  Badge,
   Card,
   Group,
   Paper,
@@ -13,228 +12,213 @@ import {
 } from "@mantine/core";
 import { BarChart, LineChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
+import { Async } from "~/components/Async";
 import { CarCard } from "~/components/CarCard";
+import { carHasExpiredDoc, listCars, listStations, monthlySummary, recent } from "~/lib/fleet";
+import { formatLei, formatLiters, formatMonth } from "~/lib/format";
+import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
-import {
-  cars,
-  carHasExpiredDoc,
-  monthlyAggregate,
-  stations,
-  transactions,
-  useData,
-} from "~/lib/data";
-import { formatLei } from "~/lib/format";
 
 export default function ManagerDashboard() {
   const session = useSession();
-  useData(); // re-render when cars or fuel-ups change
-  const monthly = monthlyAggregate(transactions);
-
-  const totalSpend = transactions.reduce((s, t) => s + t.total, 0);
-  const totalLiters = transactions.reduce((s, t) => s + t.liters, 0);
-  const totalKm = transactions.reduce((s, t) => s + t.kmDriven, 0);
-  const avgConsumption = totalKm > 0 ? Math.round((totalLiters / totalKm) * 1000) / 10 : 0;
-
-  const expiringCars = cars.filter(carHasExpiredDoc);
+  // Totalurile si graficele vin din sumarul lunar, nu din lista de alimentari: lista are plafon de
+  // randuri, deci sumele calculate din ea ar fi trunchiate, iar distanta se calculeaza pe lantul
+  // de kilometraj al intervalului intreg.
+  const summary = useResource(() => monthlySummary(), []);
+  const cars = useResource(() => listCars(), []);
+  const txs = useResource(() => recent({ limit: 5 }), []);
+  const stations = useResource(() => listStations(), []);
 
   return (
-    <AppShell session={session} title="Salut, Fleet Manager">
-      <Section title="Sumar 6 luni">
-        <SimpleGrid cols={2} spacing="sm">
-          <Stat label="Total cheltuit" value={formatLei(totalSpend)} accent />
-          <Stat label="Total litri" value={`${Math.round(totalLiters)} L`} />
-          <Stat label="Distanță" value={`${totalKm.toLocaleString("ro-RO")} km`} />
-          <Stat label="Consum mediu" value={`${avgConsumption} L/100km`} />
-        </SimpleGrid>
-      </Section>
+    <AppShell session={session} title={`Salut, ${session.name ?? "Fleet Manager"}`}>
+      <Async resource={summary}>
+        {(months) => {
+          const liters = months.reduce((s, m) => s + m.liters, 0);
+          const km = months.reduce((s, m) => s + m.km, 0);
+          const total = months.reduce((s, m) => s + m.total, 0);
 
-      <Section title="Consum mediu (L/100km)">
-        <Card withBorder radius="lg" padding="md" shadow="xs">
-          <BarChart
-            h={180}
-            data={monthly.map((m) => ({ month: m.label, value: m.consumption }))}
-            dataKey="month"
-            series={[{ name: "value", label: "L/100km", color: "brand.6" }]}
-            withYAxis={false}
-            valueFormatter={(v) => `${v} L`}
-            withBarValueLabel
-            valueLabelProps={{ position: 'inside', fill: 'white', fontSize: 18, fontWeight: 700 }}
-            barProps={{ radius: 6 }}
-          />
-        </Card>
-      </Section>
+          return (
+            <>
+              <Section title="Sumar 6 luni">
+                <SimpleGrid cols={2} spacing="sm">
+                  <Stat label="Total cheltuit" value={formatLei(total)} accent />
+                  <Stat label="Total litri" value={formatLiters(liters)} />
+                  <Stat label="Distanță" value={`${km.toLocaleString("ro-RO")} km`} />
+                  <Stat
+                    label="Consum mediu"
+                    value={km > 0 ? `${Math.round((liters / km) * 1000) / 10} L/100km` : "—"}
+                  />
+                </SimpleGrid>
+              </Section>
 
-      <Section title="Kilometri parcurși">
-        <Card withBorder radius="lg" padding="md" shadow="xs">
-          <LineChart
-            h={180}
-            data={monthly.map((m) => ({ month: m.label, value: m.km }))}
-            dataKey="month"
-            series={[{ name: "value", label: "km", color: "yellow.6" }]}
-            withDots
-            curveType="monotone"
-            valueFormatter={(v) => `${v.toLocaleString("ro-RO")} km`}
-          />
-        </Card>
-      </Section>
+              <Section title="Consum mediu (L/100km)">
+                <Card withBorder radius="lg" padding="md" shadow="xs">
+                  {/* `consumption` null lasa coloana goala: o luna fara kilometraj raportat nu are
+                      un consum de zero, ci unul necunoscut. */}
+                  <BarChart
+                    h={180}
+                    data={months.map((m) => ({ month: formatMonth(m.month), value: m.consumption }))}
+                    dataKey="month"
+                    series={[{ name: "value", label: "L/100km", color: "brand.6" }]}
+                    withYAxis={false}
+                    valueFormatter={(v) => `${v} L`}
+                    withBarValueLabel
+                    valueLabelProps={{ position: "inside", fill: "white", fontSize: 18, fontWeight: 700 }}
+                    barProps={{ radius: 6 }}
+                  />
+                </Card>
+              </Section>
+
+              <Section title="Kilometri parcurși">
+                <Card withBorder radius="lg" padding="md" shadow="xs">
+                  <LineChart
+                    h={180}
+                    data={months.map((m) => ({ month: formatMonth(m.month), value: m.km }))}
+                    dataKey="month"
+                    series={[{ name: "value", label: "km", color: "yellow.6" }]}
+                    withDots
+                    curveType="monotone"
+                    valueFormatter={(v) => `${v.toLocaleString("ro-RO")} km`}
+                  />
+                </Card>
+              </Section>
+            </>
+          );
+        }}
+      </Async>
+
+      <Async resource={cars}>
+        {(list) => {
+          const expiring = list.filter(carHasExpiredDoc);
+          return (
+            <Section
+              title={`Mașini (${session.totalCars ?? list.length})`}
+              action={
+                <Anchor component={Link} to="/manager/cars" size="sm" fw={600}>
+                  Vezi toate →
+                </Anchor>
+              }
+            >
+              {expiring.length > 0 && (
+                <Alert color="red" variant="light" mb="sm" radius="lg">
+                  <Text size="sm">
+                    <Text span fw={700}>
+                      {expiring.length}
+                    </Text>{" "}
+                    {expiring.length === 1 ? "mașină are documente expirate" : "mașini au documente expirate"}.
+                  </Text>
+                </Alert>
+              )}
+              <Stack gap="xs">
+                {list.slice(0, 3).map((c) => (
+                  <CarCard key={c.id} car={c} />
+                ))}
+                {list.length === 0 && (
+                  <Text size="sm" c="dimmed" ta="center" py="md">
+                    Nicio mașină vizibilă.
+                  </Text>
+                )}
+              </Stack>
+            </Section>
+          );
+        }}
+      </Async>
 
       <Section
-        title={`Mașini (${cars.length})`}
-        action={
-          <Anchor component={Link} to="/manager/cars" size="sm" fw={600}>
-            Vezi toate →
-          </Anchor>
-        }
-      >
-        {expiringCars.length > 0 && (
-          <Alert color="red" variant="light" mb="sm" radius="lg">
-            <Text size="sm">
-              <Text span fw={700}>
-                {expiringCars.length}
-              </Text>{" "}
-              mașini au documente expirate.
-            </Text>
-          </Alert>
-        )}
-        <Stack gap="xs">
-          {cars.slice(0, 3).map((c) => (
-            <CarCard key={c.id} car={c} to={`/car/${c.id}`} />
-          ))}
-        </Stack>
-      </Section>
-
-      <Section
-        title="Tranzacții recente"
+        title="Alimentări recente"
         action={
           <Anchor component={Link} to="/manager/transactions" size="sm" fw={600}>
             Vezi toate →
           </Anchor>
         }
       >
-        <Card withBorder padding={0} radius="lg" shadow="xs">
-          <Stack gap={0}>
-            {transactions.slice(0, 5).map((t, i, arr) => {
-              const station = stations.find((s) => s.id === t.stationId)!;
-              const car = cars.find((c) => c.id === t.carId)!;
-              return (
-                <Group
-                  key={t.id}
-                  wrap="nowrap"
-                  gap="sm"
-                  p="sm"
-                  style={{
-                    borderBottom:
-                      i === arr.length - 1 ? "none" : "1px solid var(--mantine-color-default-border)",
-                  }}
-                >
-                  <ThemeIcon variant="light" color="brand" size={40} radius="md">
-                    ⛽
-                  </ThemeIcon>
-                  <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                    <Text size="sm" fw={600} truncate>
-                      {car.plate} · {station.name}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {new Date(t.date).toLocaleDateString("ro-RO")} · {t.liters.toFixed(1)} L
-                    </Text>
-                  </Stack>
-                  <Text size="sm" fw={700}>
-                    {formatLei(t.total)}
-                  </Text>
-                </Group>
-              );
-            })}
-          </Stack>
-        </Card>
-      </Section>
-
-      <Section title="Stații">
-        <Card withBorder padding={0} radius="lg" shadow="xs">
-          <Stack gap={0}>
-            {stations.map((s, i) => {
-              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}`;
-              return (
-                <Group
-                  key={s.id}
-                  wrap="nowrap"
-                  gap="sm"
-                  p="sm"
-                  style={{
-                    borderBottom:
-                      i === stations.length - 1
-                        ? "none"
-                        : "1px solid var(--mantine-color-default-border)",
-                  }}
-                >
-                  <Anchor
-                    component={Link}
-                    to={`/manager/station/${s.id}`}
-                    underline="never"
-                    c="inherit"
-                    style={{ flex: 1, minWidth: 0 }}
-                  >
-                    <Group wrap="nowrap" gap="sm">
-                      <ThemeIcon variant="light" color="yellow" size={40} radius="md">
-                        🏪
+        <Async resource={txs}>
+          {(list) => (
+            <Card withBorder padding={0} radius="lg" shadow="xs">
+              {list.length === 0 ? (
+                <Text p="md" size="sm" c="dimmed">
+                  Nicio alimentare în ultimul an.
+                </Text>
+              ) : (
+                <Stack gap={0}>
+                  {list.map((t, i, arr) => (
+                    <Group
+                      key={t.id}
+                      wrap="nowrap"
+                      gap="sm"
+                      p="sm"
+                      style={{
+                        borderBottom:
+                          i === arr.length - 1
+                            ? "none"
+                            : "1px solid var(--mantine-color-default-border)",
+                      }}
+                    >
+                      <ThemeIcon variant="light" color="brand" size={40} radius="md">
+                        ⛽
                       </ThemeIcon>
-                      <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                      <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
                         <Text size="sm" fw={600} truncate>
-                          {s.name}
+                          {t.plate ?? "—"} · {t.stationName ?? "Stație necunoscută"}
                         </Text>
-                        <Text size="xs" c="dimmed" truncate>
-                          {s.address}
+                        <Text size="xs" c="dimmed">
+                          {t.date ? new Date(t.date).toLocaleDateString("ro-RO") : "—"}
+                          {t.liters != null && ` · ${formatLiters(t.liters)}`}
                         </Text>
                       </Stack>
+                      <Text size="sm" fw={700}>
+                        {formatLei(t.total ?? 0)}
+                      </Text>
                     </Group>
-                  </Anchor>
-                  <Stack gap={4} align="end">
-                    <Badge
-                      component="a"
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      variant="filled"
-                      color="brand"
-                      size="md"
-                      radius="sm"
-                      c="dark.8"
-                      style={{ cursor: "pointer" }}
-                    >
-                      Benzină {s.petrolPrice.toFixed(2)} lei
-                    </Badge>
-                    <Badge
-                      component="a"
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      variant="filled"
-                      color="orange"
-                      size="md"
-                      radius="sm"
-                      style={{ cursor: "pointer" }}
-                    >
-                      Motorină {s.dieselPrice.toFixed(2)} lei
-                    </Badge>
-                  </Stack>
-                </Group>
-              );
-            })}
-          </Stack>
+                  ))}
+                </Stack>
+              )}
+            </Card>
+          )}
+        </Async>
+      </Section>
+
+      <Section
+        title="Stații"
+        action={
+          <Anchor component={Link} to="/manager/stations" size="sm" fw={600}>
+            Vezi toate →
+          </Anchor>
+        }
+      >
+        {/* Nomenclatorul real are 200 de statii: pe dashboard sta numarul, lista are pagina ei. */}
+        <Card
+          component={Link}
+          to="/manager/stations"
+          withBorder
+          radius="lg"
+          padding="md"
+          shadow="xs"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <Group wrap="nowrap" gap="sm">
+            <ThemeIcon variant="light" color="yellow" size={40} radius="md">
+              🏪
+            </ThemeIcon>
+            <Stack gap={0} style={{ flex: 1 }}>
+              <Text size="sm" fw={600}>
+                {stations.data ? `${stations.data.length} stații` : "Stații"}
+              </Text>
+              <Text size="xs" c="dimmed">
+                Prețuri și alimentările flotei, pe stație
+              </Text>
+            </Stack>
+            <Text c="gray.4" fz={20} fw={700}>
+              ›
+            </Text>
+          </Group>
         </Card>
       </Section>
     </AppShell>
   );
 }
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <Paper
       radius="lg"

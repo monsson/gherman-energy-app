@@ -8,6 +8,7 @@ export default [
     route("manager/transactions", "routes/manager.transactions.tsx"),
     route("manager/receipts", "routes/manager.receipts.tsx"),
     route("manager/receipts/:id", "routes/manager.receipt.tsx"),
+    route("manager/stations", "routes/manager.stations.tsx"),
     route("manager/station/:id", "routes/manager.station.tsx"),
     route("driver", "routes/driver.dashboard.tsx"),
     route("car/:id", "routes/car.detail.tsx"),

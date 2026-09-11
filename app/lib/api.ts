@@ -198,6 +198,24 @@ async function validTokens(): Promise<Tokens> {
 }
 
 /**
+ * Mesajul de eroare al serverului, in cele trei forme in care vine.
+ *
+ * Serviciile PWA arunca `CustomValidationException`, iar addon-ul REST o serializeaza ca *lista* de
+ * incalcari - `[{path, invalidValue, message, messageTemplate}]` - nu ca obiect. Pe drumul asta ies
+ * toate refuzurile de rol si toate erorile de validare, cu mesaj scris in romana pentru utilizator,
+ * deci a-l pierde ar insemna sa aratam "Bad Request" in loc de "Doar un manager de flota are acces
+ * la facturi.". Endpointul de token foloseste `error_description`, iar restul `message`.
+ */
+function mesajEroare(payload: any): string | null {
+  if (Array.isArray(payload) && typeof payload[0]?.message === "string") {
+    return payload[0].message;
+  }
+  if (typeof payload?.error_description === "string") return payload.error_description;
+  if (typeof payload?.message === "string") return payload.message;
+  return null;
+}
+
+/**
  * Request autorizat catre backend. La 401 incearca o singura data un refresh, apoi renunta cu
  * SessionExpiredError; un 403 inseamna rol fara permisiunea ceruta si se propaga ca ApiError.
  */
@@ -238,56 +256,116 @@ export async function apiFetch<T>(
       clearTokens();
       throw new SessionExpiredError();
     }
-    const message =
-      (typeof payload?.error_description === "string" && payload.error_description) ||
-      (typeof payload?.message === "string" && payload.message) ||
-      res.statusText ||
-      "Eroare la server.";
+    const message = mesajEroare(payload) || res.statusText || "Eroare la server.";
     throw new ApiError(res.status, message);
   }
 
   return payload as T;
 }
 
-// ---------------------------------------------------------------- gp_PwaAuthService
+// ---------------------------------------------------------------- apeluri de serviciu
 
-const SERVICE = "/rest/v2/services/gp_PwaAuthService";
+const AUTH = "gp_PwaAuthService";
+const FLOTA = "gp_PwaFlotaService";
+const STATII = "gp_PwaStatiiService";
+const FACTURI = "gp_PwaFacturiService";
+
+type Params = Record<string, string | number | undefined>;
+
+/**
+ * Query string pentru o metoda de serviciu.
+ *
+ * REST API-ul CUBA alege metoda dupa setul *exact* de nume de parametri primiti
+ * (`RestServicesConfiguration.paramsMatches`), deci o cerere care omite un parametru optional nu
+ * gaseste metoda deloc. Se trimit mereu toti, cei nefolositi goi - de aceea `undefined` devine `""`,
+ * nu o cheie lipsa.
+ */
+function query(params: Params): string {
+  const sp = new URLSearchParams();
+  for (const [nume, valoare] of Object.entries(params)) {
+    sp.set(nume, valoare === undefined ? "" : String(valoare));
+  }
+  const text = sp.toString();
+  return text ? `?${text}` : "";
+}
+
+function getService<T>(serviciu: string, metoda: string, params: Params = {}): Promise<T> {
+  return apiFetch<T>(`/rest/v2/services/${serviciu}/${metoda}${query(params)}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+}
+
+function postService<T>(serviciu: string, metoda: string, body: unknown): Promise<T> {
+  return apiFetch<T>(`/rest/v2/services/${serviciu}/${metoda}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * O lista de la un serviciu. Un raspuns gol vine ca `[]`, dar `readJson` intoarce `null` pentru un
+ * corp gol, deci normalizam aici - niciun apelant nu trebuie sa se apere de `undefined.map`.
+ */
+async function listService<T>(serviciu: string, metoda: string, params: Params = {}): Promise<T[]> {
+  return (await getService<T[] | null>(serviciu, metoda, params)) ?? [];
+}
+
+// Toate campurile in afara de `id` sunt optionale pentru ca serverul **omite campurile null** din
+// JSON - nu le trimite ca `null`. Pe o masina fara date, `itp`, `segment` sau `soferId` pur si
+// simplu nu apar in obiect.
+
+// ---------------------------------------------------------------- gp_PwaAuthService
 
 /** Rolul PWA asa cum vine din backend (`RolPwa`). */
 export type RolPwa = "manager" | "sofer";
 
-/** Oglinda lui `ro.gsdata.gp.pwa.CardPwa` — numarul de card vine deja mascat de la server. */
+/** Oglinda lui `ro.gsdata.gp.pwa.CardPwa` - numarul vine deja mascat de la server. */
 export type CardPwa = {
   id: string;
-  nrCardMascat: string | null;
-  limitaLunara: number | null;
+  nrCardMascat?: string;
 };
 
 /** Oglinda lui `ro.gsdata.gp.pwa.MasinaPwa`. */
 export type MasinaPwa = {
   id: string;
-  nrInmatriculare: string | null;
-  marca: string | null;
-  model: string | null;
+  nrInmatriculare?: string;
+  marca?: string;
+  model?: string;
+  /** `yyyy-MM-dd` - coloane de tip DATE, deci fara ora. */
+  itp?: string;
+  rca?: string;
+  rovinieta?: string;
+  anFabricatie?: number;
+  /** Id-ul din `SegmentAuto`: `mica` / `autoutilitara`. */
+  segment?: string;
+  /** Id-ul din `TipCarburant`: `benzina` / `motorina` / `gpl`. */
+  tipCarburant?: string;
+  soferId?: string;
+  soferNume?: string;
+  /** Plafonul lunar adus din portal, **in litri**, pe masina (nu pe card, nu pe sofer). */
+  limitaLunara?: number;
+  consumatLunaCurentaLitri?: number;
+  consumatLunaCurentaLei?: number;
 };
 
 /** Oglinda lui `ro.gsdata.gp.pwa.ProfilPwa`. */
 export type ProfilPwa = {
   id: string;
   login: string;
-  nume: string | null;
-  rol: RolPwa | null;
-  partenerId: string | null;
-  partenerNume: string | null;
-  carduri: CardPwa[];
-  masini: MasinaPwa[];
+  nume?: string;
+  rol?: RolPwa;
+  partenerId?: string;
+  partenerNume?: string;
+  carduri?: CardPwa[];
+  /** Primele `MaxMasiniInProfil` (3) masini vizibile. Flota intreaga vine din `getMasini`. */
+  masini?: MasinaPwa[];
+  totalMasini?: number;
 };
 
 export function getProfilulMeu(): Promise<ProfilPwa> {
-  return apiFetch<ProfilPwa>(`${SERVICE}/getProfilulMeu`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  return getService<ProfilPwa>(AUTH, "getProfilulMeu");
 }
 
 /** Oglinda lui `ro.gsdata.gp.pwa.RezultatSchimbareParola`. */
@@ -297,11 +375,221 @@ export async function schimbaParola(
   parolaCurenta: string,
   parolaNoua: string,
 ): Promise<RezultatSchimbareParola> {
-  const raw = await apiFetch<unknown>(`${SERVICE}/schimbaParola`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ parolaCurenta, parolaNoua }),
-  });
+  const raw = await postService<unknown>(AUTH, "schimbaParola", { parolaCurenta, parolaNoua });
   // Enum simplu: serializat ca sir, uneori text/plain cu ghilimele.
   return String(raw).replace(/^"|"$/g, "").trim() as RezultatSchimbareParola;
+}
+
+// ---------------------------------------------------------------- gp_PwaFlotaService
+
+/** `MasinaPwa` + ce nu are rost sa calatoreasca pentru fiecare rand din flota. */
+export type MasinaDetaliuPwa = {
+  masina: MasinaPwa;
+  soferCardMascat?: string;
+};
+
+/** Oglinda lui `ro.gsdata.gp.pwa.SoferPwa`. Fara plafon si fara consum - alea stau pe masina. */
+export type SoferPwa = {
+  id: string;
+  nume?: string;
+  cardMascat?: string;
+};
+
+/** Oglinda lui `ro.gsdata.gp.pwa.MasinaFormPwa`. `id` gol = creare. */
+export type MasinaFormPwa = {
+  id?: string;
+  nrInmatriculare: string;
+  marca: string;
+  model: string;
+  anFabricatie?: number;
+  segment?: string;
+  tipCarburant?: string;
+  soferId?: string;
+  itp?: string;
+  rca?: string;
+  rovinieta?: string;
+};
+
+/** Oglinda lui `ro.gsdata.gp.pwa.TranzactiePwa`. */
+export type TranzactiePwa = {
+  id: string;
+  /** `yyyy-MM-dd'T'HH:mm:ss`, text ISO ca sa nu depindem de serializarea CUBA. */
+  data?: string;
+  masinaId?: string;
+  nrInmatriculare?: string;
+  /** Id din `TipCarburant`, nu denumirea comerciala din portal. */
+  tipCombustibil?: string;
+  cantitate?: number;
+  pretLitru?: number;
+  totalValoare?: number;
+  /** Lipseste cand importul nu a potrivit statia in nomenclator - `numeStatie` ramane. */
+  statieId?: string;
+  numeStatie?: string;
+  /** Kilometrajul introdus la pompa. */
+  kilometri?: number;
+  /** Kilometri de la alimentarea anterioara a aceleiasi masini. */
+  kmParcursi?: number;
+  nrFactura?: string;
+};
+
+/** Oglinda lui `ro.gsdata.gp.pwa.SumarLunaPwa`. */
+export type SumarLunaPwa = {
+  /** `yyyy-MM`. Eticheta o formateaza frontendul, in limba lui. */
+  luna: string;
+  litri?: number;
+  km?: number;
+  /** Lipseste (nu e zero) cand luna nu are distanta. */
+  consumMediu?: number;
+  total?: number;
+};
+
+export function getMasini(): Promise<MasinaPwa[]> {
+  return listService<MasinaPwa>(FLOTA, "getMasini");
+}
+
+/** Refuza o masina din afara flotei vizibile, nu intoarce gol. */
+export function getMasina(idMasina: string): Promise<MasinaDetaliuPwa> {
+  return getService<MasinaDetaliuPwa>(FLOTA, "getMasina", { idMasina });
+}
+
+export function getSoferi(): Promise<SoferPwa[]> {
+  return listService<SoferPwa>(FLOTA, "getSoferi");
+}
+
+export function salveazaMasina(masina: MasinaFormPwa): Promise<MasinaPwa> {
+  // Parametrul se numeste `masina` in rest-services.xml, deci formul merge invelit.
+  return postService<MasinaPwa>(FLOTA, "salveazaMasina", { masina });
+}
+
+export type FiltruTranzactii = {
+  idMasina?: string;
+  idStatie?: string;
+  idSofer?: string;
+  /** `yyyy-MM-dd`. Implicit serverul acopera ultimele 30 de zile; intervalul maxim e 366. */
+  dataInceput?: string;
+  dataSfarsit?: string;
+  /** Coboara plafonul de randuri; nu il poate ridica peste cel implicit (1000). */
+  limita?: number;
+};
+
+export function getTranzactii(filtru: FiltruTranzactii = {}): Promise<TranzactiePwa[]> {
+  return listService<TranzactiePwa>(FLOTA, "getTranzactii", {
+    idMasina: filtru.idMasina,
+    idStatie: filtru.idStatie,
+    idSofer: filtru.idSofer,
+    dataInceput: filtru.dataInceput,
+    dataSfarsit: filtru.dataSfarsit,
+    limita: filtru.limita,
+  });
+}
+
+/** Implicit ultimele 6 luni, maxim 24. Lunile fara alimentari vin ca zerouri. */
+export function getSumarLunar(idMasina?: string, luni?: number): Promise<SumarLunaPwa[]> {
+  return listService<SumarLunaPwa>(FLOTA, "getSumarLunar", { idMasina, luni });
+}
+
+// ---------------------------------------------------------------- gp_PwaStatiiService
+
+/** Oglinda lui `ro.gsdata.gp.pwa.StatiePwa`. */
+export type StatiePwa = {
+  id: string;
+  nume?: string;
+  /** Deocamdata absenta pe toate statiile - nu se introduce de nicaieri automat. */
+  adresa?: string;
+  pretBenzinaCuTva?: number;
+  pretMotorinaCuTva?: number;
+  /** `yyyy-MM-dd`. Se afiseaza, ca preturile sa nu para live de la pompa. */
+  dataActualizarePret?: string;
+};
+
+export function getStatii(): Promise<StatiePwa[]> {
+  return listService<StatiePwa>(STATII, "getStatii");
+}
+
+export function getStatie(idStatie: string): Promise<StatiePwa> {
+  return getService<StatiePwa>(STATII, "getStatie", { idStatie });
+}
+
+/**
+ * Top preturi. `tipCarburant` gol = ordonare dupa suma celor doua preturi.
+ *
+ * Accepta doar `benzina` / `motorina`: statiile nu tin pret pentru GPL, iar un `gpl` este refuzat
+ * cu 400. Implicit 3 statii, maxim 20.
+ */
+export function getStatiiIeftine(
+  tipCarburant?: "benzina" | "motorina",
+  limita?: number,
+): Promise<StatiePwa[]> {
+  return listService<StatiePwa>(STATII, "getStatiiIeftine", { tipCarburant, limita });
+}
+
+// ---------------------------------------------------------------- gp_PwaFacturiService
+
+/** Oglinda lui `ro.gsdata.gp.pwa.FacturaPwa`. `status` e derivat din `sold`. */
+export type FacturaPwa = {
+  id: string;
+  /** Serie + numar de registru. */
+  numar?: string;
+  /** `yyyy-MM-dd`. */
+  data?: string;
+  scadenta?: string;
+  totalFaraTva?: number;
+  tva?: number;
+  totalCuTva?: number;
+  sold?: number;
+  status?: "platita" | "neplatita";
+};
+
+/** Oglinda lui `ro.gsdata.gp.pwa.FacturaLiniePwa`. */
+export type FacturaLiniePwa = {
+  nrLinie?: number;
+  denumire?: string;
+  cnt?: number;
+  um?: string;
+  pretFaraTva?: number;
+  totalFaraTva?: number;
+  totalCuTva?: number;
+};
+
+/** Emitentul facturii - pe o factura client, Gherman Properties. Nu partenerul. */
+export type FurnizorPwa = {
+  nume?: string;
+  cui?: string;
+  adresa?: string;
+};
+
+export type FacturaDetaliuPwa = {
+  factura: FacturaPwa;
+  furnizor?: FurnizorPwa;
+  linii?: FacturaLiniePwa[];
+};
+
+/** Fisier livrat prin API - PWA-ul descarca, nu arhiveaza, deci nu exista FileDescriptor. */
+export type FisierPwa = {
+  numeFisier?: string;
+  contentBase64: string;
+};
+
+/** Implicit ultimul an; interval maxim 366 de zile, cel mult 500 de randuri. Doar rolul manager. */
+export function getFacturi(dataInceput?: string, dataSfarsit?: string): Promise<FacturaPwa[]> {
+  return listService<FacturaPwa>(FACTURI, "getFacturi", { dataInceput, dataSfarsit });
+}
+
+export function getFactura(idFactura: string): Promise<FacturaDetaliuPwa> {
+  return getService<FacturaDetaliuPwa>(FACTURI, "getFactura", { idFactura });
+}
+
+export function getPdfFactura(idFactura: string): Promise<FisierPwa> {
+  return getService<FisierPwa>(FACTURI, "getPdfFactura", { idFactura });
+}
+
+/**
+ * Alimentarile facturate, pe perioada din dosarul facturii.
+ *
+ * Lista goala este un raspuns valid: factura nu este Rompetrol, ori luna ei nu are inca alimentari
+ * descarcate. Atribuirea este pe perioada, nu exacta - vezi *Tranzactiile unei facturi* in planul
+ * de backend.
+ */
+export function getTranzactiiFactura(idFactura: string): Promise<TranzactiePwa[]> {
+  return listService<TranzactiePwa>(FACTURI, "getTranzactiiFactura", { idFactura });
 }

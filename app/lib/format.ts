@@ -19,3 +19,10 @@ export function formatDateTime(iso: string) {
 export function formatLiters(value: number) {
   return `${value.toLocaleString("ro-RO", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L`;
 }
+
+/** `yyyy-MM` -> eticheta scurta de luna. Backendul trimite cheia, limba o alege frontendul. */
+export function formatMonth(month: string) {
+  const [year, m] = month.split("-").map(Number);
+  if (!year || !m) return month;
+  return new Date(year, m - 1, 1).toLocaleDateString("ro-RO", { month: "short" });
+}

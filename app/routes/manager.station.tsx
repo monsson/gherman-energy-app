@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router";
 import {
   Anchor,
+  Badge,
   Card,
   Group,
   SimpleGrid,
@@ -10,97 +11,142 @@ import {
   Title,
 } from "@mantine/core";
 import { AppShell, Section } from "~/components/AppShell";
-import {
-  cars,
-  getStation,
-  transactionsForStation,
-} from "~/lib/data";
-import { formatDateTime, formatLei } from "~/lib/format";
+import { Async } from "~/components/Async";
+import { daysAgo, getStation, listTransactions } from "~/lib/fleet";
+import { formatDate, formatDateTime, formatLei, formatLiters } from "~/lib/format";
+import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
 
 export default function ManagerStation() {
   const session = useSession();
-  const { id } = useParams();
-  const station = getStation(Number(id));
-
-  if (!station) {
-    return (
-      <AppShell session={session} title="Stație" back="/manager">
-        <Text ta="center" c="dimmed" py="xl">
-          Stație inexistentă.
-        </Text>
-      </AppShell>
-    );
-  }
-
-  const txs = transactionsForStation(station.id);
-  const total = txs.reduce((s, t) => s + t.total, 0);
-  const liters = txs.reduce((s, t) => s + t.liters, 0);
+  const { id = "" } = useParams();
+  const station = useResource(() => getStation(id), [id]);
+  const txs = useResource(() => listTransactions({ stationId: id, from: daysAgo(365) }), [id]);
 
   return (
-    <AppShell session={session} title={station.name} back="/manager">
-      <Card withBorder radius="lg" padding="md" shadow="xs" mb="md">
-        <Group wrap="nowrap" gap="sm" mb="md">
-          <ThemeIcon variant="light" color="yellow" size={56} radius="md" style={{ fontSize: 28 }}>
-            🏪
-          </ThemeIcon>
-          <Stack gap={0} style={{ flex: 1 }}>
-            <Title order={4}>{station.name}</Title>
-            <Text size="sm" c="dimmed">
-              {station.address}
-            </Text>
-          </Stack>
-        </Group>
+    <AppShell session={session} title={station.data?.name ?? "Stație"} back="/manager/stations">
+      <Async resource={station}>
+        {(s) => {
+          const mapsUrl = s.address
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}`
+            : null;
 
-        <SimpleGrid cols={2} spacing="sm">
-          <Tile label="Benzină" value={`${station.petrolPrice.toFixed(2)} lei/L`} />
-          <Tile label="Motorină" value={`${station.dieselPrice.toFixed(2)} lei/L`} />
-          <Tile label="Total alimentări" value={formatLei(total)} bg="dark.8" fg="white" sub="brand.3" />
-          <Tile label="Total litri" value={`${Math.round(liters)} L`} bg="dark.7" fg="white" sub="gray.5" />
-        </SimpleGrid>
-      </Card>
+          return (
+            <>
+              <Card withBorder radius="lg" padding="md" shadow="xs" mb="md">
+                <Group wrap="nowrap" gap="sm" mb="md">
+                  <ThemeIcon variant="light" color="yellow" size={56} radius="md" style={{ fontSize: 28 }}>
+                    🏪
+                  </ThemeIcon>
+                  <Stack gap={0} style={{ flex: 1 }}>
+                    <Title order={4}>{s.name}</Title>
+                    {/* Adresele nu vin din portal; linkul catre harta apare doar cand exista una. */}
+                    {mapsUrl ? (
+                      <Anchor href={mapsUrl} target="_blank" rel="noopener noreferrer" size="sm">
+                        {s.address}
+                      </Anchor>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        Adresă necompletată
+                      </Text>
+                    )}
+                  </Stack>
+                </Group>
 
-      <Section title={`Tranzacții la ${station.name} (${txs.length})`}>
-        <Card withBorder padding={0} radius="lg" shadow="xs">
-          <Stack gap={0}>
-            {txs.map((t, i, arr) => {
-              const car = cars.find((c) => c.id === t.carId)!;
-              return (
-                <Anchor
-                  key={t.id}
-                  component={Link}
-                  to={`/car/${car.id}`}
-                  underline="never"
-                  c="inherit"
-                  style={{
-                    borderBottom:
-                      i === arr.length - 1
-                        ? "none"
-                        : "1px solid var(--mantine-color-default-border)",
-                  }}
-                >
-                  <Group wrap="nowrap" gap="sm" p="sm">
-                    <ThemeIcon variant="light" color="brand" size={40} radius="md">
-                      ⛽
-                    </ThemeIcon>
-                    <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                      <Text size="sm" fw={600}>
-                        {car.plate}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {formatDateTime(t.date)} · {t.liters.toFixed(1)} L · {t.fuel}
-                      </Text>
-                    </Stack>
-                    <Text size="sm" fw={700}>
-                      {formatLei(t.total)}
-                    </Text>
-                  </Group>
-                </Anchor>
-              );
-            })}
-          </Stack>
-        </Card>
-      </Section>
+                <SimpleGrid cols={2} spacing="sm">
+                  <Tile
+                    label="Benzină"
+                    value={s.petrolPrice != null ? `${s.petrolPrice.toFixed(2)} lei/L` : "—"}
+                  />
+                  <Tile
+                    label="Motorină"
+                    value={s.dieselPrice != null ? `${s.dieselPrice.toFixed(2)} lei/L` : "—"}
+                  />
+                </SimpleGrid>
+
+                {s.priceUpdatedAt ? (
+                  <Text size="xs" c="dimmed" mt="xs">
+                    Prețuri actualizate la {formatDate(s.priceUpdatedAt)}
+                  </Text>
+                ) : (
+                  <Badge variant="light" color="gray" mt="xs">
+                    Fără prețuri înregistrate
+                  </Badge>
+                )}
+              </Card>
+
+              <Async resource={txs}>
+                {(list) => {
+                  const total = list.reduce((acc, t) => acc + (t.total ?? 0), 0);
+                  const liters = list.reduce((acc, t) => acc + (t.liters ?? 0), 0);
+                  return (
+                    <>
+                      <SimpleGrid cols={2} spacing="sm" mb="md">
+                        <Tile label="Total alimentări" value={formatLei(total)} bg="dark.8" fg="white" sub="brand.3" />
+                        <Tile label="Total litri" value={formatLiters(liters)} bg="dark.7" fg="white" sub="gray.5" />
+                      </SimpleGrid>
+
+                      <Section title={`Alimentări, ultimul an (${list.length})`}>
+                        <Card withBorder padding={0} radius="lg" shadow="xs">
+                          {list.length === 0 ? (
+                            <Text p="md" size="sm" c="dimmed">
+                              Nicio alimentare a flotei tale la această stație în ultimul an.
+                            </Text>
+                          ) : (
+                            <Stack gap={0}>
+                              {list.map((t, i, arr) => {
+                                const borderBottom =
+                                  i === arr.length - 1
+                                    ? "none"
+                                    : "1px solid var(--mantine-color-default-border)";
+                                const row = (
+                                  <Group wrap="nowrap" gap="sm" p="sm">
+                                    <ThemeIcon variant="light" color="brand" size={40} radius="md">
+                                      ⛽
+                                    </ThemeIcon>
+                                    <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                                      <Text size="sm" fw={600} ff="monospace">
+                                        {t.plate ?? "—"}
+                                      </Text>
+                                      <Text size="xs" c="dimmed">
+                                        {t.date ? formatDateTime(t.date) : "—"}
+                                        {t.liters != null && ` · ${formatLiters(t.liters)}`}
+                                      </Text>
+                                    </Stack>
+                                    <Text size="sm" fw={700}>
+                                      {formatLei(t.total ?? 0)}
+                                    </Text>
+                                  </Group>
+                                );
+                                return t.carId ? (
+                                  <Anchor
+                                    key={t.id}
+                                    component={Link}
+                                    to={`/car/${t.carId}`}
+                                    underline="never"
+                                    c="inherit"
+                                    style={{ borderBottom }}
+                                  >
+                                    {row}
+                                  </Anchor>
+                                ) : (
+                                  <div key={t.id} style={{ borderBottom }}>
+                                    {row}
+                                  </div>
+                                );
+                              })}
+                            </Stack>
+                          )}
+                        </Card>
+                      </Section>
+                    </>
+                  );
+                }}
+              </Async>
+            </>
+          );
+        }}
+      </Async>
     </AppShell>
   );
 }

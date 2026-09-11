@@ -5,6 +5,7 @@
 // demo, cu conturile hardcodate de mai jos — asa ramane functionala si publicarea de pe GitHub
 // Pages, care nu are backend in spate.
 
+import { COMPANY } from "./company";
 import {
   API_ENABLED,
   ApiError,
@@ -25,8 +26,12 @@ export type Role = "manager" | "driver";
 export type Session = {
   role: Role;
   username: string;
-  /** Soferul din datele mock (`data.ts`). Ecranele inca citesc din setul demo. */
-  driverId?: number;
+  /**
+   * Soferul din datele demo (`data.ts`), pe care `fleet.demo.ts` il foloseste ca sa restranga
+   * flota vizibila. Exista **doar pe sesiunile demo**: intr-o sesiune pe API vizibilitatea o
+   * impune serverul, iar o punte catre un sofer fictiv ar fi ascuns exact asta.
+   */
+  driverId?: string;
   /** `api` = sesiune reala pe backend, `demo` = cont hardcodat. */
   source: "api" | "demo";
   /** Campurile de mai jos vin din `ProfilPwa` si exista doar pe sesiunile `api`. */
@@ -35,7 +40,10 @@ export type Session = {
   partenerId?: string | null;
   partenerNume?: string | null;
   cards?: CardPwa[];
+  /** Primele 3 masini vizibile, cat afiseaza dashboardul. Flota intreaga vine din `fleet.listCars`. */
   cars?: MasinaPwa[];
+  /** Numarul real de masini vizibile, pentru eticheta "Masini (N)". */
+  totalCars?: number;
 };
 
 const KEY = "ge.session";
@@ -49,13 +57,26 @@ const ACCOUNTS: { username: string; password: string; session: Session }[] = [
   {
     username: "fleet",
     password: "fleet",
-    session: { role: "manager", username: "fleet", source: "demo" },
+    session: {
+      role: "manager",
+      username: "fleet",
+      source: "demo",
+      name: "Fleet Manager",
+      partenerNume: COMPANY.legalName,
+    },
   },
   {
     username: "sofer",
     password: "sofer",
-    // Maps to driver #1 (Andrei Popescu / car #1).
-    session: { role: "driver", username: "sofer", driverId: 1, source: "demo" },
+    // Legat de soferul #1 din datele demo. Numele il ia ecranul din lista de soferi, ca sa nu fie
+    // scris de doua ori - aici si in samanta din `data.ts`.
+    session: {
+      role: "driver",
+      username: "sofer",
+      driverId: "1",
+      source: "demo",
+      partenerNume: COMPANY.legalName,
+    },
   },
 ];
 
@@ -96,6 +117,9 @@ export function getSession(): Session | null {
   }
   // Sesiunile salvate inainte de integrarea cu backendul nu au `source`.
   session.source ??= "demo";
+  // `driverId` a fost numar pana la migrarea pe id-uri de text; o sesiune veche ramasa in browser
+  // ar compara 1 cu "1" si soferul si-ar vedea flota goala.
+  if (typeof session.driverId === "number") session.driverId = String(session.driverId);
   // O sesiune `api` fara tokeni nu mai poate apela nimic — o tratam ca inexistenta.
   if (session.source === "api" && !loadTokens()) return null;
   return session;
@@ -134,9 +158,6 @@ function sessionFromProfile(profile: ProfilPwa): Session {
   return {
     role,
     username: profile.login,
-    // Puntea catre datele mock: ecranele de sofer inca citesc din `data.ts`, care indexeaza
-    // dupa numar. Dispare cand fiecare ecran isi ia datele din backend.
-    driverId: role === "driver" ? 1 : undefined,
     source: "api",
     userId: profile.id,
     name: profile.nume ?? profile.login,
@@ -144,6 +165,7 @@ function sessionFromProfile(profile: ProfilPwa): Session {
     partenerNume: profile.partenerNume,
     cards: profile.carduri ?? [],
     cars: profile.masini ?? [],
+    totalCars: profile.totalMasini ?? profile.masini?.length ?? 0,
   };
 }
 

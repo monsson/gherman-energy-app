@@ -1,24 +1,16 @@
 import { useMemo, useState } from "react";
-import {
-  Alert,
-  Button,
-  Modal,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
-import {
-  addTransaction,
-  cars as allCars,
-  drivers,
-  driverForCar,
-  type FuelType,
-  stations,
-} from "~/lib/data";
+import { Alert, Button, Modal, NumberInput, Select, Stack, Text } from "@mantine/core";
+// Componenta exista **numai in modul demo**: adaugarea de alimentari din frontend a fost anulata
+// prin planul de API. De aceea citeste direct din `data.ts`, fara sa treaca prin facada - nu are
+// corespondent pe backend. Se sterge odata cu modul demo.
+import { addTransaction, cars as allCars, stations } from "~/lib/data";
+import { FUEL_LABEL, type FuelType } from "~/lib/fleet";
 import type { Session } from "~/lib/auth";
 
-const FUELS: FuelType[] = ["Benzină", "Motorină"];
+const FUELS = (["benzina", "motorina"] as FuelType[]).map((v) => ({
+  value: v,
+  label: FUEL_LABEL[v],
+}));
 
 export function TransactionForm({
   session,
@@ -31,7 +23,7 @@ export function TransactionForm({
   onClose: () => void;
   onAdded?: () => void;
 }) {
-  // A driver may only register a fuel-up for their own car; a manager for any.
+  // Un sofer inregistreaza doar pe masinile lui, un manager pe oricare.
   const selectableCars = useMemo(
     () =>
       session.role === "driver"
@@ -40,47 +32,36 @@ export function TransactionForm({
     [session.role, session.driverId],
   );
 
-  const initialCarId = selectableCars[0]?.id ?? allCars[0]?.id ?? 0;
+  const initialCar = selectableCars[0] ?? allCars[0];
 
-  const [carId, setCarId] = useState<number>(initialCarId);
-  // Card is auto-linked to the car's driver but stays editable.
-  const [driverId, setDriverId] = useState<number>(
-    driverForCar(initialCarId)?.id ?? drivers[0]?.id ?? 0,
-  );
-  const [cardTouched, setCardTouched] = useState(false);
-  const [stationId, setStationId] = useState<number>(stations[0]?.id ?? 0);
-  const [fuel, setFuel] = useState<FuelType>(
-    allCars.find((c) => c.id === initialCarId)?.fuel ?? "Benzină",
-  );
+  const [carId, setCarId] = useState<string>(initialCar?.id ?? "");
+  const [stationId, setStationId] = useState<string>(stations[0]?.id ?? "");
+  const [fuel, setFuel] = useState<FuelType>(initialCar?.fuel ?? "benzina");
   const [liters, setLiters] = useState<number | "">(40);
   const [km, setKm] = useState<number | "">(300);
-  const [price, setPrice] = useState<number | "">(() => {
-    const st = stations[0];
-    return st ? st.dieselPrice : "";
-  });
+  const [price, setPrice] = useState<number | "">(stations[0]?.dieselPrice ?? "");
   const [error, setError] = useState<string | null>(null);
 
+  function priceAt(stationIdValue: string, fuelValue: FuelType) {
+    const st = stations.find((s) => s.id === stationIdValue);
+    if (!st) return "";
+    return (fuelValue === "benzina" ? st.petrolPrice : st.dieselPrice) ?? "";
+  }
+
   function onCarChange(value: string | null) {
-    const id = Number(value);
-    setCarId(id);
-    const car = allCars.find((c) => c.id === id);
-    if (car) {
+    if (!value) return;
+    setCarId(value);
+    const car = allCars.find((c) => c.id === value);
+    if (car?.fuel) {
       setFuel(car.fuel);
-      // Re-derive the card from the car unless the user picked one manually.
-      if (!cardTouched) {
-        const d = driverForCar(id);
-        if (d) setDriverId(d.id);
-      }
-      const st = stations.find((s) => s.id === stationId);
-      if (st) setPrice(car.fuel === "Benzină" ? st.petrolPrice : st.dieselPrice);
+      setPrice(priceAt(stationId, car.fuel));
     }
   }
 
   function onStationChange(value: string | null) {
-    const id = Number(value);
-    setStationId(id);
-    const st = stations.find((s) => s.id === id);
-    if (st) setPrice(fuel === "Benzină" ? st.petrolPrice : st.dieselPrice);
+    if (!value) return;
+    setStationId(value);
+    setPrice(priceAt(value, fuel));
   }
 
   function submit(e: React.FormEvent) {
@@ -99,7 +80,6 @@ export function TransactionForm({
     }
     addTransaction({
       carId,
-      driverId,
       stationId,
       fuel,
       liters: Number(liters),
@@ -111,10 +91,7 @@ export function TransactionForm({
     onClose();
   }
 
-  const total =
-    liters !== "" && price !== ""
-      ? (Number(liters) * Number(price)).toFixed(2)
-      : "—";
+  const total = liters !== "" && price !== "" ? (Number(liters) * Number(price)).toFixed(2) : "—";
 
   return (
     <Modal opened={opened} onClose={onClose} title="Alimentare nouă" centered radius="lg">
@@ -123,33 +100,18 @@ export function TransactionForm({
           <Select
             label="Mașina"
             data={selectableCars.map((c) => ({
-              value: String(c.id),
-              label: `${c.brand} ${c.model} · ${c.plate}`,
+              value: c.id,
+              label: `${c.plate} · ${c.brand ?? ""} ${c.model ?? ""}`.trim(),
             }))}
-            value={String(carId)}
+            value={carId}
             onChange={onCarChange}
             allowDeselect={false}
             searchable
           />
           <Select
-            label="Card (șofer)"
-            description="Asociat automat mașinii; poate fi schimbat"
-            data={drivers.map((d) => ({
-              value: String(d.id),
-              label: `•••• ${d.cardNumber} · ${d.name}`,
-            }))}
-            value={String(driverId)}
-            onChange={(v) => {
-              setCardTouched(true);
-              setDriverId(Number(v));
-            }}
-            allowDeselect={false}
-            searchable
-          />
-          <Select
-            label="Stație"
-            data={stations.map((s) => ({ value: String(s.id), label: s.name }))}
-            value={String(stationId)}
+            label="Stația"
+            data={stations.map((s) => ({ value: s.id, label: s.name }))}
+            value={stationId}
             onChange={onStationChange}
             allowDeselect={false}
             searchable
@@ -158,37 +120,35 @@ export function TransactionForm({
             label="Combustibil"
             data={FUELS}
             value={fuel}
-            onChange={(v) => setFuel((v as FuelType) ?? "Benzină")}
+            onChange={(v) => {
+              const next = (v as FuelType) ?? "benzina";
+              setFuel(next);
+              setPrice(priceAt(stationId, next));
+            }}
             allowDeselect={false}
           />
           <NumberInput
             label="Litri"
             value={liters}
             onChange={(v) => setLiters(v === "" ? "" : Number(v))}
-            min={0}
-            step={0.1}
+            min={1}
             decimalScale={1}
-            suffix=" L"
           />
           <NumberInput
-            label="Kilometri parcurși"
-            description="De la alimentarea anterioară"
-            value={km}
-            onChange={(v) => setKm(v === "" ? "" : Number(v))}
-            min={0}
-            suffix=" km"
-          />
-          <NumberInput
-            label="Preț pe litru"
+            label="Preț pe litru (lei)"
             value={price}
             onChange={(v) => setPrice(v === "" ? "" : Number(v))}
             min={0}
-            step={0.01}
             decimalScale={2}
-            suffix=" lei"
+          />
+          <NumberInput
+            label="Kilometri de la ultima alimentare"
+            value={km}
+            onChange={(v) => setKm(v === "" ? "" : Number(v))}
+            min={0}
           />
           <Text size="sm" c="dimmed">
-            Total estimat: <strong>{total} lei</strong>
+            Total: <strong>{total} lei</strong>
           </Text>
           {error && (
             <Alert color="red" variant="light" py="xs">

@@ -1,16 +1,36 @@
 import { Link } from "react-router";
-import { Badge, Card, Group, Stack, Text, ThemeIcon } from "@mantine/core";
-import { type Car, carHasExpiredDoc, getDriver } from "~/lib/data";
+import { Badge, Card, Group, Progress, Stack, Text, ThemeIcon } from "@mantine/core";
+import { type Car, carHasExpiredDoc, isBlocked } from "~/lib/fleet";
+import { formatLei, formatLiters } from "~/lib/format";
 
-const SEGMENT_GLYPH: Record<Car["segment"], string> = {
-  small: "🚗",
-  utility: "🚐",
+const SEGMENT_GLYPH: Record<string, string> = {
+  mica: "🚗",
+  autoutilitara: "🚐",
 };
 
-export function CarCard({ car, to }: { car: Car; to?: string }) {
+/** Portalul nu are marca si model la peste 90% din vehicule; importul scrie "-" in locul lor. */
+function known(value?: string): string | undefined {
+  const text = value?.trim();
+  return text && text !== "-" ? text : undefined;
+}
+
+export function CarCard({
+  car,
+  to,
+  showLimit,
+}: {
+  car: Car;
+  to?: string;
+  /** Bara de plafon lunar. Ecranul de sofer o arata, listele de flota nu. */
+  showLimit?: boolean;
+}) {
   const expired = carHasExpiredDoc(car);
-  const driver = getDriver(car.driverId);
+  const blocked = isBlocked(car);
   const target = to ?? `/car/${car.id}`;
+  const name = [known(car.brand), known(car.model)].filter(Boolean).join(" ");
+  const used = car.usedLiters ?? 0;
+  const limit = car.limitLiters;
+  const pct = limit && limit > 1 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
   return (
     <Card
@@ -35,12 +55,13 @@ export function CarCard({ car, to }: { car: Car; to?: string }) {
           color={expired ? "red" : "brand"}
           style={{ fontSize: 28 }}
         >
-          <span aria-hidden>{SEGMENT_GLYPH[car.segment]}</span>
+          <span aria-hidden>{(car.segment && SEGMENT_GLYPH[car.segment]) ?? "🚗"}</span>
         </ThemeIcon>
         <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
           <Group gap="xs" wrap="nowrap">
-            <Text fw={700} truncate>
-              {car.brand} {car.model}
+            {/* Numarul de inmatriculare este titlul: marca si modelul lipsesc pe datele reale. */}
+            <Text fw={700} ff="monospace" truncate>
+              {car.plate}
             </Text>
             {expired && (
               <Badge color="red" variant="light" size="xs">
@@ -48,13 +69,45 @@ export function CarCard({ car, to }: { car: Car; to?: string }) {
               </Badge>
             )}
           </Group>
-          <Text size="sm" c="dimmed" ff="monospace">
-            {car.plate}
-          </Text>
-          {driver && (
-            <Text size="xs" c="dimmed" truncate>
-              Card •••• {driver.cardNumber} · {driver.name}
+          {name && (
+            <Text size="sm" c="dimmed" truncate>
+              {name}
             </Text>
+          )}
+          {car.driverName && (
+            <Text size="xs" c="dimmed" truncate>
+              {car.driverName}
+            </Text>
+          )}
+          {showLimit && (
+            <Stack gap={2} mt={4}>
+              {blocked ? (
+                <Badge color="orange" variant="light" size="sm">
+                  Blocată la alimentare
+                </Badge>
+              ) : limit ? (
+                <>
+                  <Group justify="space-between" gap="xs">
+                    <Text size="xs" c="dimmed">
+                      {formatLiters(used)} / {formatLiters(limit)}
+                    </Text>
+                    <Text size="xs" fw={700}>
+                      {formatLei(car.usedLei ?? 0)}
+                    </Text>
+                  </Group>
+                  <Progress value={pct} color={pct >= 100 ? "red" : "brand"} radius="xl" size="sm" />
+                </>
+              ) : (
+                <Group justify="space-between" gap="xs">
+                  <Text size="xs" c="dimmed">
+                    Fără plafon · {formatLiters(used)} luna aceasta
+                  </Text>
+                  <Text size="xs" fw={700}>
+                    {formatLei(car.usedLei ?? 0)}
+                  </Text>
+                </Group>
+              )}
+            </Stack>
           )}
         </Stack>
         <Text c="gray.4" fz={20} fw={700}>
