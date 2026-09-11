@@ -4,11 +4,11 @@ import { AppShell } from "~/components/AppShell";
 import { Async } from "~/components/Async";
 import { CarCard } from "~/components/CarCard";
 import { CarForm } from "~/components/CarForm";
-import { type Car, carHasExpiredDoc, listCars } from "~/lib/fleet";
+import { type Car, carHasExpiredDoc, isBlocked, isNearLimit, listCars, usageRatio } from "~/lib/fleet";
 import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
 
-type Filter = "all" | "expired" | "mica" | "autoutilitara";
+type Filter = "all" | "expired" | "near" | "blocked" | "mica" | "autoutilitara";
 
 /** Flota reala are sute de masini, deci lista se desfasoara in transe, nu dintr-o data. */
 const PAGE = 30;
@@ -23,6 +23,8 @@ export default function ManagerCarsRoute() {
 
   function matches(car: Car) {
     if (filter === "expired" && !carHasExpiredDoc(car)) return false;
+    if (filter === "near" && !isNearLimit(car)) return false;
+    if (filter === "blocked" && !isBlocked(car)) return false;
     if ((filter === "mica" || filter === "autoutilitara") && car.segment !== filter) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
@@ -46,8 +48,14 @@ export default function ManagerCarsRoute() {
 
       <Async resource={cars}>
         {(list) => {
-          const filtered = list.filter(matches);
+          let filtered = list.filter(matches);
+          // Pe filtrul de plafon conteaza ordinea: cea mai apropiata de limita, prima.
+          if (filter === "near") {
+            filtered = [...filtered].sort((a, b) => (usageRatio(b) ?? 0) - (usageRatio(a) ?? 0));
+          }
           const expiredCount = list.filter(carHasExpiredDoc).length;
+          const nearCount = list.filter(isNearLimit).length;
+          const blockedCount = list.filter(isBlocked).length;
           // Segmentul nu vine din portal: pe datele reale este gol la aproape toate masinile, iar
           // doua filtre care nu intorc nimic sunt mai rele decat absenta lor.
           const hasSegments = list.some((c) => c.segment);
@@ -76,6 +84,15 @@ export default function ManagerCarsRoute() {
                 <Group gap="xs" wrap="nowrap" mb="md" style={{ overflowX: "auto" }}>
                   <Chip value="all" radius="xl">{`Toate (${list.length})`}</Chip>
                   <Chip value="expired" radius="xl" color="red">{`Expirate (${expiredCount})`}</Chip>
+                  {/* Filtrele de plafon apar doar cand au ce selecta: intr-o luna proaspat
+                      inceputa nicio masina nu e langa limita, iar un filtru care intoarce mereu
+                      gol e mai rau decat lipsa lui. */}
+                  {nearCount > 0 && (
+                    <Chip value="near" radius="xl" color="orange">{`Aproape de plafon (${nearCount})`}</Chip>
+                  )}
+                  {blockedCount > 0 && (
+                    <Chip value="blocked" radius="xl" color="orange">{`Blocate (${blockedCount})`}</Chip>
+                  )}
                   {hasSegments && (
                     <>
                       <Chip value="mica" radius="xl">
@@ -91,7 +108,7 @@ export default function ManagerCarsRoute() {
 
               <Stack gap="xs">
                 {filtered.slice(0, shown).map((c) => (
-                  <CarCard key={c.id} car={c} />
+                  <CarCard key={c.id} car={c} showLimit />
                 ))}
                 {filtered.length === 0 && (
                   <Text ta="center" c="dimmed" py="xl" size="sm">

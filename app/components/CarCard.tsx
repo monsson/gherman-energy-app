@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { Badge, Card, Group, Progress, Stack, Text, ThemeIcon } from "@mantine/core";
-import { type Car, carHasExpiredDoc, isBlocked } from "~/lib/fleet";
+import { type Car, carHasExpiredDoc, isBlocked, NEAR_LIMIT } from "~/lib/fleet";
 import { formatLei, formatLiters } from "~/lib/format";
 
 const SEGMENT_GLYPH: Record<string, string> = {
@@ -95,7 +95,17 @@ export function CarCard({
                       {formatLei(car.usedLei ?? 0)}
                     </Text>
                   </Group>
-                  <Progress value={pct} color={pct >= 100 ? "red" : "brand"} radius="xl" size="sm" />
+                  {/* Culorile sunt semantice, nu de brand: verde nu cere nimic, portocaliu
+                      inseamna "se apropie", rosu "a depasit". `brand` nu poate fi folosit pentru
+                      starea normala - auriul Gherman Energy (#FFC000) este el insusi galben, deci
+                      nu s-ar deosebi de portocaliul de avertizare. Rosul si portocaliul sunt deja
+                      folosite semantic in aplicatie (documente expirate, masina blocata). */}
+                  <Progress
+                    value={pct}
+                    color={pct >= 100 ? "red" : pct >= NEAR_LIMIT * 100 ? "orange" : "teal"}
+                    radius="xl"
+                    size="sm"
+                  />
                 </>
               ) : (
                 <Group justify="space-between" gap="xs">

@@ -272,6 +272,24 @@ export function isBlocked(car: Car): boolean {
   return car.limitLiters != null && car.limitLiters <= 1;
 }
 
+/** Pragul de la care o masina merita privita: aproape de plafon, dar inca sub el. */
+export const NEAR_LIMIT = 0.8;
+
+/**
+ * Cat din plafonul lunar s-a consumat, ca raport. `null` cand masina nu are un plafon real - fie
+ * nu are niciunul, fie are o valoare de blocare sub un litru, care nu este o alocatie si nu se
+ * raporteaza la nimic.
+ */
+export function usageRatio(car: Car): number | null {
+  if (car.limitLiters == null || car.limitLiters <= 1) return null;
+  return (car.usedLiters ?? 0) / car.limitLiters;
+}
+
+export function isNearLimit(car: Car): boolean {
+  const ratio = usageRatio(car);
+  return ratio != null && ratio >= NEAR_LIMIT;
+}
+
 export const FUEL_LABEL: Record<FuelType, string> = {
   benzina: "Benzină",
   motorina: "Motorină",

@@ -300,6 +300,22 @@ function recomputeUsed() {
 }
 recomputeUsed();
 
+/**
+ * Doua masini primesc plafoane croite pe consumul lor real din luna curenta, ca starile "aproape de
+ * plafon" si "peste plafon" sa aiba ce exercita.
+ *
+ * Nu se pot fixa la generare: consumul se aduna abia dupa ce exista alimentarile, iar la inceput de
+ * luna toate barele sunt oricum aproape goale - adica exact cele doua culori care conteaza nu s-ar
+ * vedea niciodata in demo. Aceeasi intentie ca la documentele expirate si la masina blocata.
+ */
+function calibreazaPlafoaneDemo() {
+  const aproape = cars[4];
+  if (aproape?.usedLiters) aproape.limitLiters = Math.round(aproape.usedLiters / 0.88);
+  const peste = cars[5];
+  if (peste?.usedLiters) peste.limitLiters = Math.round(peste.usedLiters * 0.8);
+}
+calibreazaPlafoaneDemo();
+
 // ---------------------------------------------------------------------------
 // Store mutabil, in localStorage: masinile si alimentarile adaugate din interfata se aseaza peste
 // datele generate. Exista doar in modul demo - in modul API scrie backendul.
