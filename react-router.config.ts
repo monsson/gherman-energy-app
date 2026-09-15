@@ -1,8 +1,7 @@
 import type { Config } from "@react-router/dev/config";
-
-const repo = "/gherman-energy-app/";
+import { basePath } from "./base-path";
 
 export default {
   ssr: false,
-  basename: repo,
+  basename: basePath,
 } satisfies Config;
