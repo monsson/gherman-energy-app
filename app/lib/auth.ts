@@ -139,6 +139,7 @@ export type LoginErrorCode =
   | "auth-disabled"
   | "client-config"
   | "not-pwa-user"
+  | "server-error"
   | "unknown";
 
 export class LoginError extends Error {
@@ -236,8 +237,13 @@ export async function login(username: string, password: string): Promise<Session
     if (err instanceof ApiError) {
       if (err.status === 0) throw new LoginError("unreachable");
       if (err.status === 403) throw new LoginError("forbidden");
-      // IllegalStateException din `getProfilulMeu` iese ca 500.
-      if (err.status === 500) throw new LoginError("not-pwa-user");
+      // Un 5xx este o exceptie cazuta pe server, si nu spune nimic despre cont: poate fi orice, de
+      // la un serviciu picat pana la o tabela care lipseste dupa un deploy incomplet. CUBA nu
+      // trimite detalii pentru exceptiile care nu sunt @SupportedByClient - doar
+      // `{"error":"Server error","details":""}`, vezi `mesajEroare` in api.ts - deci nici serverul
+      // nu ne da din ce sa deducem mai mult. "Contul nu are rol" se afla dintr-un singur loc, din
+      // `sessionFromProfile`, cand profilul chiar vine fara rol.
+      if (err.status >= 500) throw new LoginError("server-error");
     }
     throw new LoginError("unknown");
   }

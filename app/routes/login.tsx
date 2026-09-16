@@ -36,6 +36,10 @@ const LOGIN_ERRORS: Record<LoginErrorCode, string> = {
   "client-config":
     "Aplicația nu este configurată corect pentru acest server (client OAuth2 respins). Contactează administratorul.",
   "not-pwa-user": "Contul nu are un rol de aplicație mobilă (șofer sau manager de flotă).",
+  // Orice 5xx la citirea profilului. Nu spune nimic despre cont — parola a fost deja acceptată —
+  // deci mesajul trimite la server, nu la utilizator, iar cauza reală se citește din logul CUBA.
+  "server-error":
+    "Serverul a întâmpinat o eroare la încărcarea profilului. Încearcă din nou; dacă se repetă, contactează administratorul.",
   unknown: "Autentificarea a eșuat. Încearcă din nou.",
 };
 
