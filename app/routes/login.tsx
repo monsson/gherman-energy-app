@@ -27,7 +27,14 @@ export function meta() {
 const LOGIN_ERRORS: Record<LoginErrorCode, string> = {
   "bad-credentials": "Utilizator sau parolă incorecte.",
   unreachable: "Serverul nu răspunde. Verifică conexiunea și încearcă din nou.",
-  forbidden: "Contul nu are acces la aplicația mobilă. Contactează administratorul.",
+  // Parola a fost corectă, dar contului îi lipsește permisiunea `cuba.restApi.enabled`
+  // (rolul `pwa-sofer` / `pwa-manager`). Mesajul spune asta, ca să nu se caute o parolă greșită.
+  forbidden:
+    "Parola este corectă, dar contul nu are drept de acces la aplicația mobilă. Administratorul trebuie să îi atribuie rolul PWA.",
+  locked: "Contul este blocat temporar după prea multe încercări. Așteaptă câteva minute.",
+  "auth-disabled": "Autentificarea cu parolă este dezactivată pe server. Contactează administratorul.",
+  "client-config":
+    "Aplicația nu este configurată corect pentru acest server (client OAuth2 respins). Contactează administratorul.",
   "not-pwa-user": "Contul nu are un rol de aplicație mobilă (șofer sau manager de flotă).",
   unknown: "Autentificarea a eșuat. Încearcă din nou.",
 };

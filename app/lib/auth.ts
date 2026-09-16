@@ -135,6 +135,9 @@ export type LoginErrorCode =
   | "bad-credentials"
   | "unreachable"
   | "forbidden"
+  | "locked"
+  | "auth-disabled"
+  | "client-config"
   | "not-pwa-user"
   | "unknown";
 
@@ -178,6 +181,36 @@ function loginDemo(username: string, password: string): Session {
   return acc.session;
 }
 
+/**
+ * Traduce refuzul endpointului de token intr-un cod de eroare.
+ *
+ * Endpointul **nu** distinge prin status: `CubaUserAuthenticationProvider` din addonul `restapi`
+ * imbraca patru situatii diferite in acelasi 400 `invalid_grant`, iar singura diferenta e textul din
+ * `error_description`. Cea mai inselatoare e `RestApiAccessDeniedException`: parola a fost deja
+ * verificata cu succes si sesiunea creata, dar `RestApiUserAccessChecker` o respinge pentru ca
+ * utilizatorului ii lipseste permisiunea specifica `cuba.restApi.enabled` (rolurile `pwa-sofer` /
+ * `pwa-manager`, in scope-ul REST). Tratat ca "bad-credentials", cazul asta trimite administratorul
+ * sa verifice la nesfarsit o parola care e corecta.
+ *
+ * Un 401 pe endpointul de token nu vine de la utilizator, ci de la Basic auth-ul clientului OAuth2:
+ * `VITE_API_CLIENT_ID` / `VITE_API_CLIENT_SECRET` nu se potrivesc cu `cuba.rest.client.*` de pe
+ * serverul interogat. Se intampla tipic cand acelasi build e indreptat spre alt mediu.
+ */
+function tokenError(err: ApiError): LoginError {
+  if (err.status === 0) return new LoginError("unreachable");
+  // Basic auth-ul clientului, nu utilizatorul: 401 + `invalid_client`.
+  if (err.status === 401 || err.code === "invalid_client") return new LoginError("client-config");
+
+  const desc = err.message.toLowerCase();
+  if (desc.includes("not allowed to use the rest api")) return new LoginError("forbidden");
+  if (desc.includes("temporarily blocked")) return new LoginError("locked");
+  if (desc.includes("authentication disabled")) return new LoginError("auth-disabled");
+  if (err.code === "invalid_grant" || err.status === 400) return new LoginError("bad-credentials");
+  // `cuba.restApi.enabled` lipsa pe apelurile de dupa token iese ca 403.
+  if (err.status === 403) return new LoginError("forbidden");
+  return new LoginError("unknown");
+}
+
 /** Autentificare. Arunca `LoginError` cu un cod pe care formularul il traduce in mesaj. */
 export async function login(username: string, password: string): Promise<Session> {
   if (!API_ENABLED) return loginDemo(username, password);
@@ -187,15 +220,7 @@ export async function login(username: string, password: string): Promise<Session
   try {
     await requestToken(user, password);
   } catch (err) {
-    if (err instanceof ApiError) {
-      if (err.status === 0) throw new LoginError("unreachable");
-      // `invalid_grant` acopera si parola gresita, si contul inactiv.
-      if (err.code === "invalid_grant" || err.status === 400 || err.status === 401) {
-        throw new LoginError("bad-credentials");
-      }
-      // Fara permisiunea `cuba.restApi.enabled` (rolurile pwa-*) tokenul e refuzat cu 403.
-      if (err.status === 403) throw new LoginError("forbidden");
-    }
+    if (err instanceof ApiError) throw tokenError(err);
     throw new LoginError("unknown");
   }
 
