@@ -205,7 +205,7 @@ function buildTransactions(cars: Car[], stations: Station[]): Transaction[] {
 
 /** Emitentul facturilor demo. In modul API vine din `EmitentFacturi`, prin `FurnizorPwa`. */
 export const DEMO_SUPPLIER = {
-  name: "Gherman Properties SRL",
+  name: "Gherman Energy SRL",
   cui: "RO27853425",
   address: "Mircea cel Bătrân nr. 132, Constanța",
 };
