@@ -3,8 +3,17 @@ import { Badge, Button, Card, Group, Paper, Stack, Text, ThemeIcon } from "@mant
 import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
 import { CarCard } from "~/components/CarCard";
+import { SupplierBadge } from "~/components/SupplierBadge";
 import { TransactionForm } from "~/components/TransactionForm";
-import { capabilities, cheapStations, listCars, listDrivers, recent } from "~/lib/fleet";
+import {
+  capabilities,
+  cheapStations,
+  listCars,
+  listDrivers,
+  recent,
+  toFuelSupplier,
+  type FuelSupplier,
+} from "~/lib/fleet";
 import { formatDateTime, formatLei, formatLiters } from "~/lib/format";
 import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
@@ -21,10 +30,16 @@ export default function DriverDashboard() {
   // In modul API numele vine din profil; in demo, din lista de soferi (care pentru un sofer il
   // intoarce doar pe el).
   const name = session.name ?? drivers.data?.[0]?.name ?? session.username;
-  // Cardurile vin din profil in modul API; in demo, soferul isi are cardul pe el insusi.
-  const cards =
-    session.cards?.map((c) => c.nrCardMascat).filter((v): v is string => !!v) ??
-    (drivers.data?.[0]?.cardMasked ? [drivers.data[0].cardMasked] : []);
+  // Cardurile vin din profil in modul API; in demo, soferul isi are cardul pe el insusi. Furnizorul
+  // merge cu numarul mascat: doua carduri ale aceluiasi sofer arata identic pe ultimele patru cifre.
+  const driver = drivers.data?.[0];
+  const cards: { masked: string; supplier?: FuelSupplier }[] = session.cards
+    ? session.cards.flatMap((c) =>
+        c.nrCardMascat ? [{ masked: c.nrCardMascat, supplier: toFuelSupplier(c.furnizor) }] : [],
+      )
+    : driver?.cardMasked
+      ? [{ masked: driver.cardMasked, supplier: driver.cardSupplier }]
+      : [];
 
   return (
     <AppShell session={session} title={`Bună, ${name.split(" ")[0]}`}>
@@ -39,7 +54,7 @@ export default function DriverDashboard() {
           )}
           {cards.map((card) => (
             <Card
-              key={card}
+              key={card.masked}
               radius="lg"
               padding="md"
               c="white"
@@ -57,10 +72,13 @@ export default function DriverDashboard() {
                     {name}
                   </Text>
                 </Stack>
-                <Text fz={28}>💳</Text>
+                <Stack gap={6} align="end">
+                  <Text fz={28}>💳</Text>
+                  <SupplierBadge supplier={card.supplier} variant="white" color="dark" />
+                </Stack>
               </Group>
               <Text ff="monospace" fz={20} fw={500} style={{ letterSpacing: "0.2em" }}>
-                {card}
+                {card.masked}
               </Text>
             </Card>
           ))}
@@ -128,9 +146,12 @@ export default function DriverDashboard() {
                         ⛽
                       </ThemeIcon>
                       <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                        <Text size="sm" fw={600} truncate>
-                          {t.stationName ?? "Stație necunoscută"}
-                        </Text>
+                        <Group gap={6} wrap="nowrap">
+                          <Text size="sm" fw={600} truncate>
+                            {t.stationName ?? "Stație necunoscută"}
+                          </Text>
+                          <SupplierBadge supplier={t.supplier} />
+                        </Group>
                         <Text size="xs" c="dimmed">
                           {t.date ? formatDateTime(t.date) : "—"}
                           {t.liters != null && ` · ${formatLiters(t.liters)}`}

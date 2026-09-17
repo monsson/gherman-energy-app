@@ -330,6 +330,12 @@ export type RolPwa = "manager" | "sofer";
 export type CardPwa = {
   id: string;
   nrCardMascat?: string;
+  /**
+   * Id din `FurnizorCarburant`: `rompetrol` / `mol` / `socar`. Lipseste pe cardurile carora nu li
+   * s-a completat furnizorul in back-office. Fara el doua carduri ale aceluiasi sofer arata
+   * identic, seria fiind mascata la ultimele patru cifre.
+   */
+  furnizor?: string;
 };
 
 /** Oglinda lui `ro.gsdata.gp.pwa.MasinaPwa`. */
@@ -438,6 +444,8 @@ export type TranzactiePwa = {
   nrInmatriculare?: string;
   /** Id din `TipCarburant`, nu denumirea comerciala din portal. */
   tipCombustibil?: string;
+  /** Id din `FurnizorCarburant`. Azi `rompetrol` pe toate randurile - vezi `Supplier` in `fleet.ts`. */
+  furnizor?: string;
   cantitate?: number;
   pretLitru?: number;
   totalValoare?: number;

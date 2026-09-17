@@ -13,6 +13,7 @@ import {
 import { BarChart, LineChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
+import { SupplierBadge } from "~/components/SupplierBadge";
 import { CarCard } from "~/components/CarCard";
 import { carHasExpiredDoc, listCars, listStations, monthlySummary, recent } from "~/lib/fleet";
 import { formatLei, formatLiters, formatMonth } from "~/lib/format";
@@ -158,9 +159,12 @@ export default function ManagerDashboard() {
                         ⛽
                       </ThemeIcon>
                       <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                        <Text size="sm" fw={600} truncate>
-                          {t.plate ?? "—"} · {t.stationName ?? "Stație necunoscută"}
-                        </Text>
+                        <Group gap={6} wrap="nowrap">
+                          <Text size="sm" fw={600} truncate>
+                            {t.plate ?? "—"} · {t.stationName ?? "Stație necunoscută"}
+                          </Text>
+                          <SupplierBadge supplier={t.supplier} />
+                        </Group>
                         <Text size="xs" c="dimmed">
                           {t.date ? new Date(t.date).toLocaleDateString("ro-RO") : "—"}
                           {t.liters != null && ` · ${formatLiters(t.liters)}`}

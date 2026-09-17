@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
+import { SupplierBadge } from "~/components/SupplierBadge";
 import { ApiError } from "~/lib/api";
 import { downloadInvoice, getInvoice, invoiceTransactions } from "~/lib/fleet";
 import { formatDate, formatDateTime, formatLei, formatLiters } from "~/lib/format";
@@ -250,9 +251,12 @@ function InvoiceTransactions({ id }: { id: string }) {
                       ⛽
                     </ThemeIcon>
                     <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                      <Text size="sm" fw={600} truncate>
-                        {t.plate ?? "—"} · {t.stationName ?? "Stație necunoscută"}
-                      </Text>
+                      <Group gap={6} wrap="nowrap">
+                        <Text size="sm" fw={600} truncate>
+                          {t.plate ?? "—"} · {t.stationName ?? "Stație necunoscută"}
+                        </Text>
+                        <SupplierBadge supplier={t.supplier} />
+                      </Group>
                       <Text size="xs" c="dimmed">
                         {t.date ? formatDateTime(t.date) : "—"}
                         {t.liters != null && ` · ${formatLiters(t.liters)}`}

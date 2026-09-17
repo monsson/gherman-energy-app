@@ -15,6 +15,7 @@ import {
 import { BarChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
+import { SupplierBadge } from "~/components/SupplierBadge";
 import { CarDocuments } from "~/components/CarDocuments";
 import { CarForm } from "~/components/CarForm";
 import {
@@ -130,9 +131,12 @@ export default function CarDetailRoute() {
                                 ⛽
                               </ThemeIcon>
                               <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                                <Text size="sm" fw={600} truncate>
-                                  {t.stationName ?? "Stație necunoscută"}
-                                </Text>
+                                <Group gap={6} wrap="nowrap">
+                                  <Text size="sm" fw={600} truncate>
+                                    {t.stationName ?? "Stație necunoscută"}
+                                  </Text>
+                                  <SupplierBadge supplier={t.supplier} />
+                                </Group>
                                 <Text size="xs" c="dimmed">
                                   {t.date ? formatDateTime(t.date) : "—"}
                                   {t.liters != null && ` · ${formatLiters(t.liters)}`}

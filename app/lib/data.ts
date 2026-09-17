@@ -99,6 +99,9 @@ function buildDrivers(): Driver[] {
     id: String(i + 1),
     name,
     cardMasked: `•••• ${String(1000 + i * 137 + 23).slice(-4)}`,
+    // Prima etapa a integrarii acopera doar FillAndGo, deci demo-ul nu inventeaza un al doilea
+    // furnizor pe care API-ul nu l-ar intoarce.
+    cardSupplier: "rompetrol",
   }));
 }
 
@@ -182,6 +185,7 @@ function buildTransactions(cars: Car[], stations: Station[]): Transaction[] {
         plate: car.plate,
         driverId: car.driverId,
         fuel: car.fuel,
+        supplier: "rompetrol",
         liters,
         pricePerLiter: basePrice,
         total,
@@ -541,6 +545,7 @@ export function addTransaction(input: TransactionInput): Transaction {
     plate: car?.plate,
     driverId: car?.driverId,
     fuel: input.fuel,
+    supplier: "rompetrol",
     liters: input.liters,
     pricePerLiter: input.pricePerLiter,
     total,

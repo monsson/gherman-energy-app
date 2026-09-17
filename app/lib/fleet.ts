@@ -20,6 +20,21 @@ export type FuelType = "benzina" | "motorina" | "gpl";
 export type Segment = "mica" | "autoutilitara";
 
 /**
+ * Id-urile din `FurnizorCarburant` - de la cine s-a cumparat carburantul.
+ *
+ * Azi toate alimentarile si toate cardurile reale sunt `rompetrol`: prima etapa a integrarii
+ * acopera doar FillAndGo. Campul exista ca lista sa nu devina ambigua in clipa in care intra si
+ * extrasele MOL / Socar, si pentru ca un sofer cu doua carduri nu le poate deosebi dupa ultimele
+ * patru cifre, singurul lucru care ajunge in browser.
+ */
+export type FuelSupplier = "rompetrol" | "mol" | "socar";
+
+/** Enum-ul vine ca text; un id necunoscut nu are eticheta, deci nu are nici insigna. */
+export function toFuelSupplier(id?: string): FuelSupplier | undefined {
+  return id === "rompetrol" || id === "mol" || id === "socar" ? id : undefined;
+}
+
+/**
  * Aproape totul este optional: serverul **omite campurile null** din JSON, iar pe datele reale
  * marca, modelul, segmentul si documentele lipsesc la majoritatea masinilor.
  */
@@ -82,7 +97,19 @@ export type CarDocumentUpload = {
   contentBase64: string;
 };
 
-export type Driver = { id: string; name: string; cardMasked?: string };
+/**
+ * `cardSupplier` exista numai in modul demo, ca ecranul de carduri sa arate la fel in ambele moduri;
+ * in modul API acelasi ecran il ia din profil (`ProfilPwa.carduri[].furnizor`).
+ *
+ * `SoferPwa` nu poarta furnizorul si **nu are de ce sa il poarte**: furnizorul este al cardului, nu
+ * al soferului. Un sofer are un singur cont si poate tine carduri de la mai multi furnizori - nu isi
+ * face cate un cont de fiecare. In plus `cardMascat` este cardul *principal*, ales de `CarduriPwa`
+ * dintre cardurile soferului, deci o insigna langa el ar spune "soferul asta alimenteaza la X" cand
+ * de fapt spune doar "asa s-a sortat lista". Insigna sta unde un card e aratat ca un card - lista de
+ * carduri din `/driver` - nu unde e aratat ca semn de identificare al unei persoane (antetul din
+ * `car/:id`, selectul de sofer).
+ */
+export type Driver = { id: string; name: string; cardMasked?: string; cardSupplier?: FuelSupplier };
 
 export type Transaction = {
   id: string;
@@ -92,6 +119,8 @@ export type Transaction = {
   plate?: string;
   driverId?: string;
   fuel?: FuelType;
+  /** De la cine s-a alimentat. Lipseste doar pe un id de enum pe care frontendul nu il cunoaste. */
+  supplier?: FuelSupplier;
   liters?: number;
   pricePerLiter?: number;
   total?: number;
@@ -378,6 +407,12 @@ export const FUEL_LABEL: Record<FuelType, string> = {
   benzina: "Benzină",
   motorina: "Motorină",
   gpl: "GPL",
+};
+
+export const FUEL_SUPPLIER_LABEL: Record<FuelSupplier, string> = {
+  rompetrol: "Rompetrol",
+  mol: "MOL",
+  socar: "Socar",
 };
 
 export const SEGMENT_LABEL: Record<Segment, string> = {

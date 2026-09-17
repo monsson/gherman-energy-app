@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import { AppShell } from "~/components/AppShell";
 import { Async } from "~/components/Async";
+import { SupplierBadge } from "~/components/SupplierBadge";
 import { TransactionForm } from "~/components/TransactionForm";
 import {
   capabilities,
@@ -165,9 +166,12 @@ export default function ManagerTransactions() {
                                 ⛽
                               </ThemeIcon>
                               <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-                                <Text size="sm" fw={600} ff="monospace" truncate>
-                                  {t.plate ?? "—"}
-                                </Text>
+                                <Group gap={6} wrap="nowrap">
+                                  <Text size="sm" fw={600} ff="monospace" truncate>
+                                    {t.plate ?? "—"}
+                                  </Text>
+                                  <SupplierBadge supplier={t.supplier} />
+                                </Group>
                                 <Text size="xs" c="dimmed" truncate>
                                   {t.stationName ?? "Stație necunoscută"}
                                   {t.fuel && ` · ${FUEL_LABEL[t.fuel]}`}

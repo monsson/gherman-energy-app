@@ -24,6 +24,7 @@ import type {
   Transaction,
   TransactionFilter,
 } from "./fleet";
+import { toFuelSupplier } from "./fleet";
 
 function fuel(id?: string): FuelType | undefined {
   return id === "benzina" || id === "motorina" || id === "gpl" ? id : undefined;
@@ -66,6 +67,7 @@ function transaction(dto: api.TranzactiePwa): Transaction {
     carId: dto.masinaId,
     plate: dto.nrInmatriculare,
     fuel: fuel(dto.tipCombustibil),
+    supplier: toFuelSupplier(dto.furnizor),
     liters: dto.cantitate,
     pricePerLiter: dto.pretLitru,
     total: dto.totalValoare,
