@@ -385,6 +385,18 @@ export async function schimbaParola(
   return String(raw).replace(/^"|"$/g, "").trim() as RezultatSchimbareParola;
 }
 
+/**
+ * Fisier livrat prin API - PWA-ul descarca, nu arhiveaza, deci nu exista FileDescriptor.
+ *
+ * Aceeasi forma pentru scanul unui document si pentru PDF-ul unei facturi: continutul vine in
+ * base64, nu pe `/rest/v2/files/{id}`, fiindca rolurile PWA nu au permisiuni pe `sys$FileDescriptor`.
+ * Nu poarta tip MIME - il deduce `download.ts` din extensia numelui.
+ */
+export type FisierPwa = {
+  numeFisier?: string;
+  contentBase64: string;
+};
+
 // ---------------------------------------------------------------- gp_PwaFlotaService
 
 /** `MasinaPwa` + ce nu are rost sa calatoreasca pentru fiecare rand din flota. */
@@ -400,7 +412,12 @@ export type SoferPwa = {
   cardMascat?: string;
 };
 
-/** Oglinda lui `ro.gsdata.gp.pwa.MasinaFormPwa`. `id` gol = creare. */
+/**
+ * Oglinda lui `ro.gsdata.gp.pwa.MasinaFormPwa`. `id` gol = creare.
+ *
+ * `itp`/`rca`/`rovinieta` **nu** se mai trimit inapoi la salvare: termenele nu mai sunt coloane pe
+ * `Masina`, ci se deduc din documente. Se schimba numai prin `incarcaDocumentMasina`.
+ */
 export type MasinaFormPwa = {
   id?: string;
   nrInmatriculare: string;
@@ -410,9 +427,6 @@ export type MasinaFormPwa = {
   segment?: string;
   tipCarburant?: string;
   soferId?: string;
-  itp?: string;
-  rca?: string;
-  rovinieta?: string;
 };
 
 /** Oglinda lui `ro.gsdata.gp.pwa.TranzactiePwa`. */
@@ -493,6 +507,75 @@ export function getSumarLunar(idMasina?: string, luni?: number): Promise<SumarLu
   return listService<SumarLunaPwa>(FLOTA, "getSumarLunar", { idMasina, luni });
 }
 
+/** Id-ul din `DocumentMasinaTip` - aceleasi trei termene pe care le poarta si `MasinaPwa`. */
+export type TipDocumentMasina = "itp" | "rca" | "rovinieta";
+
+/**
+ * Oglinda lui `ro.gsdata.gp.pwa.DocumentMasinaPwa` - un rand din documentele masinii.
+ *
+ * Lista vine gata ordonata pentru ecran: pe tip, iar in interiorul tipului de la termenul cel mai
+ * indepartat spre cel mai vechi. Primul rand al unui tip este documentul curent si poarta
+ * `curent: true`; restul sunt reinnoirile dinaintea lui. Randurile fara termen nu apar deloc.
+ *
+ * `curent` si `areScan` sunt `boolean` primitiv in DTO, deci vin mereu - spre deosebire de restul
+ * campurilor, pe care serverul le omite cand sunt null.
+ */
+export type DocumentMasinaPwa = {
+  id: string;
+  /** Id din `DocumentMasinaTip`; un tip necunoscut frontendului se ignora. */
+  tip?: string;
+  /** `yyyy-MM-dd`. */
+  dataEmitere?: string;
+  dataExpirare?: string;
+  curent: boolean;
+  /** Documentul are scan. Pe un rand din istoric **nu** inseamna ca se poate descarca. */
+  areScan: boolean;
+  numeFisier?: string;
+  dimensiuneOcteti?: number;
+};
+
+/** Oglinda lui `ro.gsdata.gp.pwa.DocumentMasinaFormPwa`. */
+export type DocumentMasinaFormPwa = {
+  idMasina: string;
+  tip: string;
+  /** `yyyy-MM-dd`. */
+  dataEmitere?: string;
+  /** Obligatorie: un rand fara termen nu ar fi niciodata cel curent, deci nu s-ar putea descarca. */
+  dataExpirare: string;
+  /** Cu tot cu extensie - ea decide daca fisierul e acceptat (`pdf`, `jpg`, `jpeg`, `png`). */
+  numeFisier: string;
+  /** Acceptat si ca data URL, cum il da un `<input type="file">` din browser. */
+  continutBase64: string;
+};
+
+/** Documentele masinii, cu istoric. Le citeste oricine vede masina. */
+export function getDocumenteMasina(idMasina: string): Promise<DocumentMasinaPwa[]> {
+  return listService<DocumentMasinaPwa>(FLOTA, "getDocumenteMasina", { idMasina });
+}
+
+/**
+ * Scanul documentului **curent** al tipului cerut.
+ *
+ * Refuza, cu mesaje diferite, masina fara niciun document de tipul cerut si documentul care exista
+ * doar ca termen - de aceea ecranul cere fisierul numai cand `curent && areScan`, in loc sa afle
+ * din eroare. Un scan din istoric nu se poate descarca deloc.
+ */
+export function getDocumentMasina(idMasina: string, tip: string): Promise<FisierPwa> {
+  return getService<FisierPwa>(FLOTA, "getDocumentMasina", { idMasina, tip });
+}
+
+/**
+ * Salveaza un scan nou. **Doar rolul manager** - un sofer primeste refuz inainte de orice citire.
+ *
+ * Randul se cauta dupa (masina, tip, `dataExpirare`): acelasi termen inseamna acelasi document,
+ * deci scanul il inlocuieste pe cel vechi; un termen diferit creeaza randul unei reinnoiri.
+ * Intoarce masina cu termenele reasezate.
+ */
+export function incarcaDocumentMasina(document: DocumentMasinaFormPwa): Promise<MasinaPwa> {
+  // Parametrul se numeste `document` in rest-services.xml, deci formul merge invelit.
+  return postService<MasinaPwa>(FLOTA, "incarcaDocumentMasina", { document });
+}
+
 // ---------------------------------------------------------------- gp_PwaStatiiService
 
 /** Oglinda lui `ro.gsdata.gp.pwa.StatiePwa`. */
@@ -567,12 +650,6 @@ export type FacturaDetaliuPwa = {
   factura: FacturaPwa;
   furnizor?: FurnizorPwa;
   linii?: FacturaLiniePwa[];
-};
-
-/** Fisier livrat prin API - PWA-ul descarca, nu arhiveaza, deci nu exista FileDescriptor. */
-export type FisierPwa = {
-  numeFisier?: string;
-  contentBase64: string;
 };
 
 /** Implicit ultimul an; interval maxim 366 de zile, cel mult 500 de randuri. Doar rolul manager. */

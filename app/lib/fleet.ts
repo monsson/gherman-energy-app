@@ -46,6 +46,42 @@ export type Car = {
 
 export type CarDetail = Car & { driverCardMasked?: string };
 
+/** Id-urile din `DocumentMasinaTip`. */
+export type CarDocumentType = "itp" | "rca" | "rovinieta";
+
+/**
+ * Un rand din documentele masinii - documentul curent al unui tip sau o reinnoire dinaintea lui.
+ *
+ * `current` marcheaza randul de care raspunde masina acum: cel cu termenul cel mai indepartat din
+ * tipul lui, aceeasi regula care da `car.itp` / `car.rca` / `car.rovinieta`.
+ */
+export type CarDocument = {
+  id: string;
+  type: CarDocumentType;
+  /** `yyyy-MM-dd`. */
+  issued?: string;
+  expires?: string;
+  current: boolean;
+  /** Documentul a fost scanat. Singur, **nu** inseamna ca se poate descarca - vezi `canDownloadDoc`. */
+  hasScan: boolean;
+  fileName?: string;
+  sizeBytes?: number;
+};
+
+/** Ce trimite ecranul la incarcarea unui scan. */
+export type CarDocumentUpload = {
+  carId: string;
+  type: CarDocumentType;
+  /** `yyyy-MM-dd`. */
+  issued?: string;
+  /** Obligatoriu: fara termen documentul nu ar fi niciodata cel curent, deci nu s-ar descarca. */
+  expires: string;
+  /** Cu tot cu extensie - ea decide daca fisierul este acceptat. */
+  fileName: string;
+  /** Continutul, fara prefixul de data URL. */
+  contentBase64: string;
+};
+
 export type Driver = { id: string; name: string; cardMasked?: string };
 
 export type Transaction = {
@@ -115,6 +151,10 @@ export type Supplier = { name?: string; cui?: string; address?: string };
 
 export type InvoiceDetail = { invoice: Invoice; supplier?: Supplier; lines: InvoiceLine[] };
 
+/**
+ * Termenele lipsesc dinadins: nu mai sunt campuri pe masina, ci se deduc din documente, iar
+ * singura cale de a le schimba este incarcarea unui scan (`uploadCarDocument`).
+ */
 export type CarInput = {
   /** Gol = masina noua. */
   id?: string;
@@ -125,9 +165,6 @@ export type CarInput = {
   segment?: Segment;
   fuel?: FuelType;
   driverId?: string;
-  itp?: string;
-  rca?: string;
-  rovinieta?: string;
 };
 
 export type TransactionFilter = {
@@ -146,6 +183,9 @@ export type FleetSource = {
   getCar(id: string): Promise<CarDetail>;
   listDrivers(): Promise<Driver[]>;
   saveCar(input: CarInput): Promise<Car>;
+  listCarDocuments(carId: string): Promise<CarDocument[]>;
+  downloadCarDocument(carId: string, type: CarDocumentType): Promise<void>;
+  uploadCarDocument(input: CarDocumentUpload): Promise<Car>;
   listTransactions(filter: TransactionFilter): Promise<Transaction[]>;
   monthlySummary(carId?: string, months?: number): Promise<MonthSummary[]>;
   listStations(): Promise<Station[]>;
@@ -168,13 +208,13 @@ export function onApi(): boolean {
 /**
  * Ce poate aplicatia in modul curent, intr-un singur loc.
  *
- * Doua functii exista numai in demo: adaugarea de alimentari a fost anulata prin planul de API
- * (alimentarile intra exclusiv prin importul din portal), iar documentele masinii nu au inca un
- * endpoint - `getDocumentMasina` este amanat pana exista unde sa fie tinute fisierele.
+ * O singura functie exista numai in demo: adaugarea de alimentari a fost anulata prin planul de API,
+ * alimentarile intra exclusiv prin importul din portal. Documentele masinii nu mai sunt aici -
+ * exista in ambele moduri, iar cine le poate incarca tine de rol, nu de mod.
  */
 export function capabilities() {
   const demo = !onApi();
-  return { canAddTransaction: demo, hasCarDocuments: demo };
+  return { canAddTransaction: demo };
 }
 
 // ---------------------------------------------------------------- ajutoare de data
@@ -224,6 +264,15 @@ export async function listDrivers() {
 export async function saveCar(input: CarInput) {
   return (await source()).saveCar(input);
 }
+export async function listCarDocuments(carId: string) {
+  return (await source()).listCarDocuments(carId);
+}
+export async function downloadCarDocument(carId: string, type: CarDocumentType) {
+  return (await source()).downloadCarDocument(carId, type);
+}
+export async function uploadCarDocument(input: CarDocumentUpload) {
+  return (await source()).uploadCarDocument(input);
+}
 export async function listTransactions(filter: TransactionFilter = {}) {
   return (await source()).listTransactions(filter);
 }
@@ -262,6 +311,41 @@ export function isExpired(date?: string): boolean {
 export function carHasExpiredDoc(car: Car): boolean {
   return isExpired(car.itp) || isExpired(car.rca) || isExpired(car.rovinieta);
 }
+
+/** Ordinea in care ecranul randeaza tipurile, indiferent ce documente exista. */
+export const CAR_DOCUMENT_TYPES: CarDocumentType[] = ["itp", "rca", "rovinieta"];
+
+export const DOCUMENT_LABEL: Record<CarDocumentType, string> = {
+  itp: "ITP",
+  rca: "RCA",
+  rovinieta: "Rovinietă",
+};
+
+/**
+ * Cand randul are cu adevarat un fisier de dat.
+ *
+ * Nu este acelasi lucru cu `hasScan`: se descarca **numai documentul curent**, deci pe un rand din
+ * istoric scanul exista, dar API-ul nu are cale spre el. Un buton randat doar pe `hasScan` ar cere
+ * un fisier pe care serverul il refuza.
+ */
+export function canDownloadDoc(doc: CarDocument): boolean {
+  return doc.current && doc.hasScan;
+}
+
+/** Documentul curent al unui tip, daca exista. */
+export function currentDoc(docs: CarDocument[], type: CarDocumentType): CarDocument | undefined {
+  return docs.find((d) => d.type === type && d.current);
+}
+
+/** Reinnoirile dinaintea documentului curent, in ordinea primita de la server. */
+export function docHistory(docs: CarDocument[], type: CarDocumentType): CarDocument[] {
+  return docs.filter((d) => d.type === type && !d.current);
+}
+
+/** Ce accepta `incarcaDocumentMasina`; verificat si local, ca sa nu plece 10 MB degeaba. */
+export const DOCUMENT_EXTENSIONS = ["pdf", "jpg", "jpeg", "png"];
+
+export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 /**
  * Sub un litru plafonul nu este o alocatie, ci o blocare: portalul foloseste o valoare simbolica

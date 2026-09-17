@@ -2,12 +2,10 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import {
   Anchor,
-  Badge,
   Button,
   Card,
   Divider,
   Group,
-  Paper,
   SimpleGrid,
   Stack,
   Text,
@@ -17,20 +15,18 @@ import {
 import { BarChart } from "@mantine/charts";
 import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
+import { CarDocuments } from "~/components/CarDocuments";
 import { CarForm } from "~/components/CarForm";
 import {
-  capabilities,
   type CarDetail,
   daysAgo,
   FUEL_LABEL,
   getCar,
-  isExpired,
   listTransactions,
   monthlySummary,
   SEGMENT_LABEL,
 } from "~/lib/fleet";
-import { formatDate, formatDateTime, formatLei, formatLiters, formatMonth } from "~/lib/format";
-import { downloadPdf } from "~/lib/pdf";
+import { formatDateTime, formatLei, formatLiters, formatMonth } from "~/lib/format";
 import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
 
@@ -64,7 +60,11 @@ export default function CarDetailRoute() {
               </Button>
             )}
 
-            <Documents car={data} />
+            <CarDocuments
+              car={data}
+              canUpload={session.role === "manager"}
+              onUploaded={car.reload}
+            />
 
             <Section title="Sumar 6 luni">
               <Async resource={summary}>
@@ -246,102 +246,6 @@ function Header({ car }: { car: CarDetail }) {
         </>
       )}
     </Card>
-  );
-}
-
-function Documents({ car }: { car: CarDetail }) {
-  const canDownload = capabilities().hasCarDocuments;
-
-  function talon() {
-    downloadPdf(`talon-${car.plate}.pdf`, "CERTIFICAT DE INMATRICULARE", [
-      "(Document fictiv - prototip GE)",
-      "",
-      `Numar inmatriculare: ${car.plate}`,
-      `Marca: ${car.brand ?? "-"}`,
-      `Model: ${car.model ?? "-"}`,
-      `An fabricatie: ${car.year ?? "-"}`,
-      `Tip combustibil: ${car.fuel ? FUEL_LABEL[car.fuel] : "-"}`,
-      `Sofer asignat: ${car.driverName ?? "-"}`,
-      "",
-      `ITP valabil pana la: ${car.itp ? formatDate(car.itp) : "-"}`,
-      "Detinator: GHERMAN ENERGY SRL",
-    ]);
-  }
-
-  function insurance() {
-    downloadPdf(`asigurare-${car.plate}.pdf`, "POLITA RCA", [
-      "(Document fictiv - prototip GE)",
-      "",
-      `Numar inmatriculare: ${car.plate}`,
-      `Marca / Model: ${[car.brand, car.model].filter(Boolean).join(" ")}`,
-      "Asigurat: GHERMAN ENERGY SRL",
-      `Polita nr: GE-${car.id.slice(0, 8).toUpperCase()}`,
-      "",
-      `Valabila pana la: ${car.rca ? formatDate(car.rca) : "-"}`,
-    ]);
-  }
-
-  return (
-    <Section title="Documente">
-      <Stack gap="xs">
-        <DocRow label="ITP" date={car.itp} />
-        <DocRow label="RCA" date={car.rca} />
-        <DocRow label="Rovinietă" date={car.rovinieta} />
-      </Stack>
-      {canDownload && (
-        <SimpleGrid cols={2} spacing="xs" mt="sm">
-          <Button variant="default" size="md" onClick={talon}>
-            📄 Talon
-          </Button>
-          <Button variant="default" size="md" onClick={insurance}>
-            📑 Asigurare
-          </Button>
-        </SimpleGrid>
-      )}
-    </Section>
-  );
-}
-
-/** Trei stari, nu doua: valabil, expirat si necunoscut - o data lipsa nu inseamna expirata. */
-function DocRow({ label, date }: { label: string; date?: string }) {
-  const missing = !date;
-  const expired = isExpired(date);
-
-  return (
-    <Paper
-      withBorder
-      radius="lg"
-      p="sm"
-      style={{ borderColor: expired ? "var(--mantine-color-red-3)" : undefined }}
-    >
-      <Group justify="space-between" wrap="nowrap">
-        <Group wrap="nowrap" gap="sm">
-          <ThemeIcon
-            variant="light"
-            color={expired ? "red" : missing ? "gray" : "brand"}
-            size={36}
-            radius="md"
-          >
-            <Text fw={800}>{expired ? "!" : missing ? "?" : "✓"}</Text>
-          </ThemeIcon>
-          <Stack gap={0}>
-            <Text size="10px" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
-              {label}
-            </Text>
-            <Text fw={700} c={expired ? "red.7" : missing ? "dimmed" : undefined}>
-              {date ? formatDate(date) : "Necompletat"}
-            </Text>
-          </Stack>
-        </Group>
-        <Badge
-          variant="light"
-          color={expired ? "red" : missing ? "gray" : "brand"}
-          c={expired || missing ? undefined : "dark.8"}
-        >
-          {expired ? "Expirat" : missing ? "Necunoscut" : "Valabil"}
-        </Badge>
-      </Group>
-    </Paper>
   );
 }
 

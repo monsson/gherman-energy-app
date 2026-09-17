@@ -8,8 +8,10 @@
 // Un LCG cu samanta fixa genereaza totul la incarcarea modulului, deci datele sunt stabile intre
 // reincarcari - dar **se schimba daca se atinge samanta sau logica de generare**.
 
+import { CAR_DOCUMENT_TYPES } from "./fleet";
 import type {
   Car,
+  CarDocumentType,
   Driver,
   FuelType,
   Invoice,
@@ -317,18 +319,156 @@ function calibreazaPlafoaneDemo() {
 calibreazaPlafoaneDemo();
 
 // ---------------------------------------------------------------------------
+// Documentele masinilor
+// ---------------------------------------------------------------------------
+
+/**
+ * Un rand din `gp_DocumentMasina`, cu masina cu tot.
+ *
+ * `current` lipseste: in backend nu este o coloana, ci rezultatul ordonarii - documentul curent al
+ * unui tip este cel cu `max(dataExpirare)`. Il calculeaza adaptorul demo, la fel ca serverul, ca
+ * incarcarea unui scan nou sa nu aiba de intretinut un steag.
+ */
+export type CarDocumentRow = {
+  id: string;
+  carId: string;
+  type: CarDocumentType;
+  issued?: string;
+  /** `yyyy-MM-dd`. Randurile fara termen nu ajung in API, deci nici aici. */
+  expires: string;
+  hasScan: boolean;
+  fileName?: string;
+  sizeBytes?: number;
+  /**
+   * Continutul unui scan incarcat din interfata, ca descarcarea sa intoarca exact ce s-a trimis.
+   * **Nu se salveaza in localStorage**: un PDF de cateva MB ar depasi cota si ar pierde tot storul.
+   * Dupa un refresh randul ramane, iar descarcarea cade pe documentul fictiv generat de `pdf.ts`.
+   */
+  contentBase64?: string;
+};
+
+/**
+ * Cate un document curent pentru fiecare termen al fiecarei masini, plus cateva cazuri anume, ca
+ * ecranul sa aiba ce exercita: doua termene **fara scan** - cazul obisnuit pe datele reale, unde
+ * data se trece in back-office inainte sa existe documentul scanat - si doua reinnoiri, adica
+ * randuri de istoric, pe care butonul de descarcare nu trebuie sa apara.
+ *
+ * Fara `rng()`: generarea documentelor a venit dupa restul datelor, iar consumate aici numerele ar
+ * fi mutat toate alimentarile deja generate.
+ */
+const FARA_SCAN = new Set(["3:itp", "6:rovinieta"]);
+const CU_ISTORIC = new Set(["1:itp", "5:rca"]);
+/** O masina fara niciun document de un tip - starea "Necunoscut", alta decat "fara scan". */
+const FARA_DOCUMENT = new Set(["8:rovinieta"]);
+
+function buildCarDocuments(list: Car[]): CarDocumentRow[] {
+  const rows: CarDocumentRow[] = [];
+
+  for (const car of list) {
+    for (const type of CAR_DOCUMENT_TYPES) {
+      const expires = car[type];
+      if (!expires) continue;
+
+      const key = `${car.id}:${type}`;
+      if (FARA_DOCUMENT.has(key)) continue;
+
+      rows.push(documentRow(car, type, expires, !FARA_SCAN.has(key)));
+
+      if (CU_ISTORIC.has(key)) {
+        // Reinnoirea de anul trecut: are scan, dar nu este documentul curent, deci nu se descarca.
+        const previous = isoDate(addDays(new Date(expires), -365));
+        rows.push(documentRow(car, type, previous, true));
+      }
+    }
+  }
+
+  return rows;
+}
+
+function documentRow(
+  car: Car,
+  type: CarDocumentType,
+  expires: string,
+  hasScan: boolean,
+): CarDocumentRow {
+  return {
+    id: `D${car.id}-${type}-${expires}`,
+    carId: car.id,
+    type,
+    // Documentele se emit cu un an inainte de termen; unul fara scan nu are nici data de emitere,
+    // fiindca in back-office se trece doar termenul.
+    issued: hasScan ? isoDate(addDays(new Date(expires), -365)) : undefined,
+    expires,
+    hasScan,
+    fileName: hasScan ? scanName(car, type, expires) : undefined,
+    // Cat ar ocupa un scan; numarul nu are de ce sa fie real, doar stabil si plauzibil.
+    sizeBytes: hasScan ? 180_000 + Number(car.id) * 7_351 : undefined,
+  };
+}
+
+/** Acelasi nume compus sub care salveaza backendul: "ITP CT56RCH 2027-03-01.pdf". */
+export function scanName(car: Car, type: CarDocumentType, expires: string, extension = "pdf") {
+  return `${type.toUpperCase()} ${car.plate.replace(/[^A-Z0-9]/gi, "")} ${expires}.${extension}`;
+}
+
+export const carDocuments: CarDocumentRow[] = buildCarDocuments(cars);
+
+/**
+ * Termenele masinii sunt `max(expires)` pe (masina, tip) - aceeasi regula ca
+ * `ExpirariDocumenteMasina` in backend, unde `itp`/`rca`/`rovinieta` nu mai sunt coloane pe masina.
+ * Se recalculeaza dupa fiecare scan incarcat.
+ */
+function recomputeDocumentDates() {
+  for (const car of cars) {
+    for (const type of CAR_DOCUMENT_TYPES) {
+      const latest = carDocuments
+        .filter((d) => d.carId === car.id && d.type === type)
+        .reduce<string | undefined>((max, d) => (!max || d.expires > max ? d.expires : max), undefined);
+      car[type] = latest;
+    }
+  }
+}
+
+// Termenele masinii sunt de acum derivate, ca in modul API: masina fara document de un tip ramane
+// fara termen, oricat ar fi generat `buildCars`.
+recomputeDocumentDates();
+
+/**
+ * Salveaza un scan, cu regula backendului: randul se cauta dupa (masina, tip, termen), deci acelasi
+ * termen inseamna acelasi document si scanul il inlocuieste pe cel vechi, iar un termen diferit
+ * creeaza randul unei reinnoiri.
+ */
+export function upsertCarDocument(row: Omit<CarDocumentRow, "id">): CarDocumentRow {
+  const existing = carDocuments.find(
+    (d) => d.carId === row.carId && d.type === row.type && d.expires === row.expires,
+  );
+
+  if (existing) {
+    Object.assign(existing, row);
+    return existing;
+  }
+
+  const created = { ...row, id: `D${row.carId}-${row.type}-${row.expires}` };
+  carDocuments.push(created);
+  return created;
+}
+
+// ---------------------------------------------------------------------------
 // Store mutabil, in localStorage: masinile si alimentarile adaugate din interfata se aseaza peste
 // datele generate. Exista doar in modul demo - in modul API scrie backendul.
 // ---------------------------------------------------------------------------
 
-// v2: `rovigneta` s-a redenumit `rovinieta` si id-urile au trecut de la numar la text; datele
-// salvate sub v1 nu se mai potrivesc pe forma noua.
-const STORE_KEY = "ge.data.v2";
+// v2: `rovigneta` s-a redenumit `rovinieta` si id-urile au trecut de la numar la text.
+// v3: termenele masinii nu mai sunt date proprii, ci se deduc din documente - o masina salvata sub
+// v2 ar reveni cu date pe care niciun document nu le sustine.
+const STORE_KEY = "ge.data.v3";
 
 export function persist() {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ cars, transactions }));
+    // Continutul scanurilor nu pleaca in store: cateva MB de base64 ar depasi cota si ar pierde tot.
+    const documents = carDocuments.map(({ contentBase64, ...row }) => row);
+    localStorage.setItem(STORE_KEY, JSON.stringify({ cars, transactions, documents }));
   } catch {
     // Cota depasita sau serializare esuata - in prototip se ignora.
   }
@@ -339,12 +479,20 @@ function hydrate() {
   const raw = localStorage.getItem(STORE_KEY);
   if (!raw) return;
   try {
-    const data = JSON.parse(raw) as { cars?: Car[]; transactions?: Transaction[] };
+    const data = JSON.parse(raw) as {
+      cars?: Car[];
+      transactions?: Transaction[];
+      documents?: CarDocumentRow[];
+    };
     if (Array.isArray(data.cars)) cars.splice(0, cars.length, ...data.cars);
     if (Array.isArray(data.transactions))
       transactions.splice(0, transactions.length, ...data.transactions);
+    if (Array.isArray(data.documents))
+      carDocuments.splice(0, carDocuments.length, ...data.documents);
     invoices = buildInvoices(transactions);
     recomputeUsed();
+    // Termenele vin din documente, nu din masinile salvate - la fel ca in modul API.
+    recomputeDocumentDates();
   } catch {
     // Store corupt - se ramane pe datele generate.
   }
@@ -357,6 +505,7 @@ export function nextCarId() {
 
 export function refreshDerived() {
   recomputeUsed();
+  recomputeDocumentDates();
   persist();
 }
 

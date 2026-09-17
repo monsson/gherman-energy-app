@@ -26,3 +26,11 @@ export function formatMonth(month: string) {
   if (!year || !m) return month;
   return new Date(year, m - 1, 1).toLocaleDateString("ro-RO", { month: "short" });
 }
+
+/** Cat ocupa un scan, ca butonul de descarcare sa poata spune ce se ia - util pe telefon. */
+export function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toLocaleString("ro-RO", { maximumFractionDigits: 1 })} MB`;
+}

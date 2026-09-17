@@ -8,20 +8,39 @@
 // Se sterge in intregime cand modul demo iese din aplicatie.
 
 import { getSession } from "./auth";
-import { cars, drivers, invoices, nextCarId, refreshDerived, stations, transactions } from "./data";
+import {
+  type CarDocumentRow,
+  carDocuments,
+  cars,
+  drivers,
+  invoices,
+  nextCarId,
+  refreshDerived,
+  scanName,
+  stations,
+  transactions,
+  upsertCarDocument,
+} from "./data";
 import { DEMO_SUPPLIER } from "./data";
+import { downloadBase64 } from "./download";
 import { downloadPdf } from "./pdf";
 import { formatDate, formatLei } from "./format";
-import type {
-  Car,
-  CarDetail,
-  CarInput,
-  FleetSource,
-  InvoiceDetail,
-  MonthSummary,
-  Station,
-  Transaction,
-  TransactionFilter,
+import {
+  DOCUMENT_EXTENSIONS,
+  DOCUMENT_LABEL,
+  DOCUMENT_MAX_BYTES,
+  type Car,
+  type CarDetail,
+  type CarDocument,
+  type CarDocumentType,
+  type CarDocumentUpload,
+  type CarInput,
+  type FleetSource,
+  type InvoiceDetail,
+  type MonthSummary,
+  type Station,
+  type Transaction,
+  type TransactionFilter,
 } from "./fleet";
 
 /** Soferul contului demo. Un manager nu are, deci vede toata flota. */
@@ -34,11 +53,39 @@ function visibleCars(): Car[] {
   return driverId ? cars.filter((c) => c.driverId === driverId) : cars;
 }
 
+/** Refuz, nu rezultat gol - la fel ca `MasiniVizibilePwa`. */
+function requireCar(id: string): Car {
+  const car = visibleCars().find((c) => c.id === id);
+  if (!car) throw new Error("Mașina nu este accesibilă utilizatorului autentificat.");
+  return car;
+}
+
 /** Acelasi plafon ca in `PwaFlotaServiceBean`, ca ecranele sa intalneasca trunchierea si in demo. */
 const MAX_TRANSACTIONS = 1000;
 
 function monthKey(iso: string) {
   return iso.slice(0, 7);
+}
+
+/** Documentul curent al unui tip: `max(expires)`, aceeasi regula ca `documentCurent` in backend. */
+function currentDocumentRow(carId: string, type: CarDocumentType): CarDocumentRow | undefined {
+  return carDocuments
+    .filter((d) => d.carId === carId && d.type === type && d.expires)
+    .reduce<CarDocumentRow | undefined>(
+      (best, d) => (!best || d.expires > best.expires ? d : best),
+      undefined,
+    );
+}
+
+function extensionOf(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return dot < 0 ? "" : fileName.slice(dot + 1).toLowerCase();
+}
+
+/** Dimensiunea dupa decodare, calculata din textul base64 - ca in serviciu, fara sa-l decodeze. */
+function decodedSize(base64: string): number {
+  const text = base64.trim().replace(/=+$/, "");
+  return Math.floor((text.length * 3) / 4);
 }
 
 export const demoSource: FleetSource = {
@@ -47,9 +94,7 @@ export const demoSource: FleetSource = {
   },
 
   async getCar(id: string): Promise<CarDetail> {
-    const car = visibleCars().find((c) => c.id === id);
-    // Refuz, nu rezultat gol - la fel ca `MasiniVizibilePwa`.
-    if (!car) throw new Error("Mașina nu este accesibilă utilizatorului autentificat.");
+    const car = requireCar(id);
     const driver = drivers.find((d) => d.id === car.driverId);
     return { ...car, driverCardMasked: driver?.cardMasked };
   },
@@ -74,9 +119,6 @@ export const demoSource: FleetSource = {
       fuel: input.fuel,
       driverId: input.driverId,
       driverName: driver?.name,
-      itp: input.itp,
-      rca: input.rca,
-      rovinieta: input.rovinieta,
     };
 
     if (existing) {
@@ -87,6 +129,119 @@ export const demoSource: FleetSource = {
 
     const car: Car = { id: nextCarId(), usedLiters: 0, usedLei: 0, limitLiters: 400, ...values };
     cars.push(car);
+    refreshDerived();
+    return { ...car };
+  },
+
+  /**
+   * Documentele masinii, in ordinea serverului: pe tip, iar in interiorul tipului de la termenul cel
+   * mai indepartat spre cel mai vechi. Primul rand al unui tip este documentul curent.
+   */
+  async listCarDocuments(carId: string): Promise<CarDocument[]> {
+    requireCar(carId);
+
+    const rows = carDocuments
+      .filter((d) => d.carId === carId && d.expires)
+      .sort((a, b) =>
+        a.type === b.type ? (a.expires < b.expires ? 1 : -1) : a.type < b.type ? -1 : 1,
+      );
+
+    const seen = new Set<CarDocumentType>();
+    return rows.map((d) => {
+      // `current` se deduce din ordonare, ca in backend: primul rand al tipului este cel curent.
+      const current = !seen.has(d.type);
+      seen.add(d.type);
+      return {
+        id: d.id,
+        type: d.type,
+        issued: d.issued,
+        expires: d.expires,
+        current,
+        hasScan: d.hasScan,
+        fileName: d.fileName,
+        sizeBytes: d.sizeBytes,
+      };
+    });
+  },
+
+  /**
+   * Se descarca numai documentul curent, iar cele doua lipsuri au mesaje diferite - la fel ca
+   * `PwaFlotaServiceBean`, ca ecranul sa poata spune "expiră la …, fără document" in loc de
+   * "nu există".
+   */
+  async downloadCarDocument(carId: string, type: CarDocumentType) {
+    const car = requireCar(carId);
+    const current = currentDocumentRow(carId, type);
+
+    if (!current) {
+      throw new Error(`Mașina ${car.plate} nu are un document de tip ${DOCUMENT_LABEL[type]}.`);
+    }
+    if (!current.hasScan) {
+      throw new Error(
+        `Documentul ${DOCUMENT_LABEL[type]} al mașinii ${car.plate} nu are încă un scan încărcat.`,
+      );
+    }
+
+    const name = current.fileName ?? scanName(car, type, current.expires);
+
+    // Scanul incarcat in sesiunea curenta se intoarce asa cum a venit; pentru documentele generate
+    // - si pentru cele incarcate inaintea unui refresh, al caror continut nu se salveaza - se
+    // fabrica un PDF fictiv, ca butonul sa livreze totusi ceva.
+    if (current.contentBase64) {
+      downloadBase64(name, current.contentBase64);
+      return;
+    }
+
+    downloadPdf(name, `${DOCUMENT_LABEL[type].toUpperCase()} (document fictiv - prototip GE)`, [
+      `Numar inmatriculare: ${car.plate}`,
+      `Marca / Model: ${[car.brand, car.model].filter(Boolean).join(" ")}`,
+      "Detinator: GHERMAN ENERGY SRL",
+      "",
+      `Data emiterii: ${current.issued ? formatDate(current.issued) : "-"}`,
+      `Valabil pana la: ${formatDate(current.expires)}`,
+    ]);
+  },
+
+  /** Doar managerul scrie; restul verificarilor sunt cele din `DocumenteMasinaPwa`. */
+  async uploadCarDocument(input: CarDocumentUpload): Promise<Car> {
+    // Refuzul de rol vine inaintea oricarei citiri, ca in serviciu.
+    if (currentDriverId()) {
+      throw new Error("Doar un manager de flotă poate încărca documentele mașinilor.");
+    }
+
+    const car = requireCar(input.carId);
+    const extension = extensionOf(input.fileName);
+
+    if (!DOCUMENT_EXTENSIONS.includes(extension)) {
+      throw new Error(`Documentul trebuie să fie unul dintre: ${DOCUMENT_EXTENSIONS.join(", ")}.`);
+    }
+    if (!input.expires) {
+      throw new Error("Termenul de expirare este obligatoriu.");
+    }
+    if (input.issued && input.issued > input.expires) {
+      throw new Error("Data emiterii nu poate fi după data expirării.");
+    }
+
+    const sizeBytes = decodedSize(input.contentBase64);
+    if (sizeBytes === 0) throw new Error("Conținutul documentului lipsește.");
+    if (sizeBytes > DOCUMENT_MAX_BYTES) {
+      throw new Error(`Documentul depășește ${DOCUMENT_MAX_BYTES / (1024 * 1024)} MB.`);
+    }
+
+    // Randul se cauta dupa (masina, tip, termen): acelasi termen inlocuieste scanul, unul diferit
+    // este o reinnoire. Numele este cel compus de server, nu cel dat de telefon.
+    upsertCarDocument({
+      carId: car.id,
+      type: input.type,
+      issued: input.issued,
+      expires: input.expires,
+      hasScan: true,
+      fileName: scanName(car, input.type, input.expires, extension),
+      sizeBytes,
+      contentBase64: input.contentBase64,
+    });
+
+    // Termenele masinii se reasaza din documente, ca in backend.
     refreshDerived();
     return { ...car };
   },

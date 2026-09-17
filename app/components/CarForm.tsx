@@ -7,6 +7,7 @@ import {
   NumberInput,
   Select,
   Stack,
+  Text,
   TextInput,
 } from "@mantine/core";
 import {
@@ -40,9 +41,6 @@ type FormState = {
   segment: Segment | "";
   fuel: FuelType | "";
   driverId: string;
-  itp: string;
-  rca: string;
-  rovinieta: string;
 };
 
 function fromCar(car: Car): FormState {
@@ -54,9 +52,6 @@ function fromCar(car: Car): FormState {
     segment: car.segment ?? "",
     fuel: car.fuel ?? "",
     driverId: car.driverId ?? "",
-    itp: car.itp ?? "",
-    rca: car.rca ?? "",
-    rovinieta: car.rovinieta ?? "",
   };
 }
 
@@ -69,9 +64,6 @@ function blank(): FormState {
     segment: "",
     fuel: "",
     driverId: "",
-    itp: "",
-    rca: "",
-    rovinieta: "",
   };
 }
 
@@ -120,9 +112,6 @@ export function CarForm({
       segment: form.segment || undefined,
       fuel: form.fuel || undefined,
       driverId: form.driverId || undefined,
-      itp: form.itp || undefined,
-      rca: form.rca || undefined,
-      rovinieta: form.rovinieta || undefined,
     };
 
     setBusy(true);
@@ -209,26 +198,14 @@ export function CarForm({
               clearable
             />
           </Group>
-          <TextInput
-            label="ITP valabil până la"
-            type="date"
-            value={form.itp}
-            onChange={(e) => set("itp", e.currentTarget.value)}
-          />
-          <Group grow>
-            <TextInput
-              label="RCA"
-              type="date"
-              value={form.rca}
-              onChange={(e) => set("rca", e.currentTarget.value)}
-            />
-            <TextInput
-              label="Rovinietă"
-              type="date"
-              value={form.rovinieta}
-              onChange={(e) => set("rovinieta", e.currentTarget.value)}
-            />
-          </Group>
+          {/* Termenele ITP / RCA / rovinieta nu mai sunt campuri pe masina: se deduc din documente
+              si se schimba doar incarcand un scan, in sectiunea "Documente" a masinii. */}
+          {car && (
+            <Text size="xs" c="dimmed">
+              Termenele ITP, RCA și rovinietă vin din documentele mașinii. Se schimbă încărcând
+              documentul, în secțiunea <b>Documente</b>.
+            </Text>
+          )}
           {error && (
             <Alert color="red" variant="light" py="xs">
               {error}

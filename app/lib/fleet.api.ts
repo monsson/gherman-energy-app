@@ -8,6 +8,9 @@ import { downloadBase64 } from "./download";
 import type {
   Car,
   CarDetail,
+  CarDocument,
+  CarDocumentType,
+  CarDocumentUpload,
   CarInput,
   Driver,
   FleetSource,
@@ -28,6 +31,10 @@ function fuel(id?: string): FuelType | undefined {
 
 function segment(id?: string): Segment | undefined {
   return id === "mica" || id === "autoutilitara" ? id : undefined;
+}
+
+function documentType(id?: string): CarDocumentType | undefined {
+  return id === "itp" || id === "rca" || id === "rovinieta" ? id : undefined;
 }
 
 function car(dto: api.MasinaPwa): Car {
@@ -128,9 +135,6 @@ function carForm(input: CarInput): api.MasinaFormPwa {
     segment: input.segment,
     tipCarburant: input.fuel,
     soferId: input.driverId,
-    itp: input.itp,
-    rca: input.rca,
-    rovinieta: input.rovinieta,
   };
 }
 
@@ -154,6 +158,49 @@ export const apiSource: FleetSource = {
 
   async saveCar(input: CarInput) {
     return car(await api.salveazaMasina(carForm(input)));
+  },
+
+  async listCarDocuments(carId: string): Promise<CarDocument[]> {
+    const list = await api.getDocumenteMasina(carId);
+    // Ordinea vine de la server - pe tip, iar in tip de la termenul cel mai indepartat spre cel mai
+    // vechi - si ecranul se bazeaza pe ea, deci nu se reordoneaza aici.
+    return list.flatMap((dto) => {
+      const type = documentType(dto.tip);
+      // Un tip pe care frontendul nu il cunoaste nu are rand pe un ecran randat pe tipuri.
+      if (!type) return [];
+      return [
+        {
+          id: dto.id,
+          type,
+          issued: dto.dataEmitere,
+          expires: dto.dataExpirare,
+          current: dto.curent,
+          hasScan: dto.areScan,
+          fileName: dto.numeFisier,
+          sizeBytes: dto.dimensiuneOcteti,
+        },
+      ];
+    });
+  },
+
+  async downloadCarDocument(carId: string, type: CarDocumentType) {
+    const fisier = await api.getDocumentMasina(carId, type);
+    // Serverul salveaza scanul sub un nume compus ("ITP B150RCH 2027-09-15.pdf"); numele local este
+    // doar plasa de siguranta, extensia lui dand si tipul MIME.
+    downloadBase64(fisier.numeFisier ?? `${type}.pdf`, fisier.contentBase64);
+  },
+
+  async uploadCarDocument(input: CarDocumentUpload) {
+    return car(
+      await api.incarcaDocumentMasina({
+        idMasina: input.carId,
+        tip: input.type,
+        dataEmitere: input.issued,
+        dataExpirare: input.expires,
+        numeFisier: input.fileName,
+        continutBase64: input.contentBase64,
+      }),
+    );
   },
 
   async listTransactions(filter: TransactionFilter) {
