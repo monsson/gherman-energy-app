@@ -9,6 +9,7 @@
 
 import { getSession } from "./auth";
 import {
+  addLimitRequest,
   type CarDocumentRow,
   carDocuments,
   cars,
@@ -16,6 +17,7 @@ import {
   invoices,
   nextCarId,
   refreshDerived,
+  refreshLimits,
   scanName,
   stations,
   transactions,
@@ -37,6 +39,9 @@ import {
   type CarInput,
   type FleetSource,
   type InvoiceDetail,
+  type LimitRequest,
+  limitError,
+  roundLiters,
   type MonthSummary,
   type Station,
   type Transaction,
@@ -49,6 +54,9 @@ function currentDriverId(): string | undefined {
 }
 
 function visibleCars(): Car[] {
+  // Coada de cereri se coace cu trecerea timpului, nu la o actiune: o citire de masini trebuie sa
+  // vada plafonul deja scris de "portal", ca in modul API, unde taskul a rulat intre timp.
+  refreshLimits();
   const driverId = currentDriverId();
   return driverId ? cars.filter((c) => c.driverId === driverId) : cars;
 }
@@ -242,6 +250,29 @@ export const demoSource: FleetSource = {
     });
 
     // Termenele masinii se reasaza din documente, ca in backend.
+    refreshDerived();
+    return { ...car };
+  },
+
+  /**
+   * Cere schimbarea unui plafon, cu regulile din `CereriLimitaMasina`: refuzul de rol inaintea
+   * oricarei citiri, apoi validarea valorii, apoi randul in coada.
+   *
+   * **Nu scrie plafonul.** Coloana este copia portalului si se schimba abia cand cererea se inchide
+   * - in demo, dupa scurta asteptare din `data.ts`, exact ca taskul programat.
+   */
+  async requestLimitChange(input: LimitRequest): Promise<Car> {
+    if (currentDriverId()) {
+      throw new Error("Doar un manager de flotă poate schimba plafoanele mașinilor.");
+    }
+
+    const car = requireCar(input.carId);
+    const liters = roundLiters(input.liters);
+
+    const refuz = limitError(car, input.period, liters);
+    if (refuz) throw new Error(refuz);
+
+    addLimitRequest(car, input.period, liters);
     refreshDerived();
     return { ...car };
   },

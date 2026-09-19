@@ -8,7 +8,7 @@
 // Un LCG cu samanta fixa genereaza totul la incarcarea modulului, deci datele sunt stabile intre
 // reincarcari - dar **se schimba daca se atinge samanta sau logica de generare**.
 
-import { CAR_DOCUMENT_TYPES } from "./fleet";
+import { CAR_DOCUMENT_TYPES, carLimit } from "./fleet";
 import type {
   Car,
   CarDocumentType,
@@ -16,6 +16,9 @@ import type {
   FuelType,
   Invoice,
   InvoiceLine,
+  LeiEstimateSource,
+  LimitPeriod,
+  LimitRequestState,
   Segment,
   Station,
   Transaction,
@@ -122,6 +125,12 @@ function buildCars(): Car[] {
     if (i === 3) limitLiters = 0.01;
     if (i === 7) limitLiters = undefined;
 
+    // Plafonul saptamanal si cel zilnic exista in portal pe ~100 de vehicule din 1600, deci aici
+    // le au doua masini din zece: una numai saptamanal, una amandoua. Pe restul lipsa lor chiar
+    // inseamna "fara plafon pe perioada aceea", nu "nu stim".
+    const weeklyLimitLiters = i === 1 ? 200 : i === 9 ? 150 : undefined;
+    const dailyLimitLiters = i === 9 ? 50 : undefined;
+
     return {
       id: String(i + 1),
       plate: `CT-${String(randInt(10, 99))}-${PLATE_LETTERS[i]}`,
@@ -136,6 +145,8 @@ function buildCars(): Car[] {
       rca: isoDate(addDays(today, rcaOffset)),
       rovinieta: isoDate(addDays(today, rovOffset)),
       limitLiters,
+      weeklyLimitLiters,
+      dailyLimitLiters,
       usedLiters: 0, // completat dupa generarea tranzactiilor
       usedLei: 0,
     };
@@ -322,6 +333,206 @@ function calibreazaPlafoaneDemo() {
 }
 calibreazaPlafoaneDemo();
 
+/**
+ * Estimarea in lei a plafonului lunar, cu aceleasi trei trepte ca `MasiniVizibilePwa.estimariLimita`:
+ * pretul mediu al masinii din luna curenta, apoi din tot istoricul ei, apoi al intregii flote.
+ *
+ * Se opreste la prima treapta care da un pret, si **lipseste cu totul** cand masina nu are plafon
+ * lunar sau cand nu iese niciun pret - o cifra scoasa dintr-un pret inventat ar fi mai rea decat
+ * lipsa ei. `valoare` se calculeaza din pretul deja rotunjit, ca inmultirea sa dea pe ecran exact
+ * suma afisata.
+ */
+function recomputeEstimates() {
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+  const flota = transactions.reduce(
+    (acc, t) => ({ liters: acc.liters + (t.liters ?? 0), lei: acc.lei + (t.total ?? 0) }),
+    { liters: 0, lei: 0 },
+  );
+
+  for (const car of cars) {
+    car.limitEstimateLei = undefined;
+    if (car.limitLiters == null) continue;
+
+    const own = transactions.filter((t) => t.carId === car.id);
+    const trepte: { liters: number; lei: number; source: LeiEstimateSource }[] = [
+      {
+        liters: car.usedLiters ?? 0,
+        lei: car.usedLei ?? 0,
+        source: "masina_luna_curenta",
+      },
+      {
+        liters: own.reduce((sum, t) => sum + (t.liters ?? 0), 0),
+        lei: own.reduce((sum, t) => sum + (t.total ?? 0), 0),
+        source: "masina_istoric",
+      },
+      { liters: flota.liters, lei: flota.lei, source: "partener_istoric" },
+    ];
+
+    const treapta = trepte.find((t) => t.liters > 0 && t.lei > 0);
+    if (!treapta) continue;
+
+    const pretLitru = Math.round((treapta.lei / treapta.liters) * 100) / 100;
+    car.limitEstimateLei = {
+      value: Math.round(car.limitLiters * pretLitru * 100) / 100,
+      pricePerLiter: pretLitru,
+      source: treapta.source,
+    };
+  }
+}
+
+// Si luna curenta, si istoricul depind de tranzactii, deci estimarile se asaza abia acum.
+recomputeEstimates();
+
+// ---------------------------------------------------------------------------
+// Cererile de schimbare a plafonului
+// ---------------------------------------------------------------------------
+
+/**
+ * Un rand din `gp_CerereLimitaMasina`.
+ *
+ * Coada exista si in demo pentru ca ea este toata poanta mecanismului: managerul nu schimba
+ * plafonul, ci **cere** schimbarea, iar valoarea de pe masina se scrie abia din ce se citeste
+ * inapoi din portal. Un demo care ar aplica pe loc ar ascunde tocmai starea pe care ecranul
+ * trebuie sa o arate.
+ */
+export type LimitRequestRow = {
+  id: string;
+  carId: string;
+  period: LimitPeriod;
+  oldValue?: number;
+  newValue: number;
+  state: LimitRequestState;
+  /** Epoch ms - de la el se masoara "cat mai are de asteptat". */
+  requestedAt: number;
+  /** Epoch ms, la inchidere. Fereastra raspunsului se masoara de aici, ca in backend. */
+  closedAt?: number;
+  /** Motivul refuzului, ca `CerereLimitaMasina.mesajEroare`. Gol pe o cerere confirmata. */
+  message?: string;
+};
+
+/**
+ * Cat sta o cerere in coada inainte sa fie dusa "in portal".
+ *
+ * In backend o duce un task programat la fiecare jumatate de ora; aici ar insemna un demo in care
+ * nimic nu se intampla cat esti pe pagina. Un sfert de minut este destul cat starea *in asteptare*
+ * sa se vada si sa nu para o eroare, si putin destul cat sa poti cere altceva fara sa astepti.
+ */
+const SETTLE_MS = 15_000;
+
+/**
+ * Masinile pe care demo-ul refuza cererile, ca ramura de respingere sa aiba ce exercita.
+ *
+ * Reproduce cazul real cel mai des intalnit: placuta care apare de doua ori in portal (14 la numar),
+ * pe care trimiterea nu poate spune carei inregistrari ii apartine valoarea, deci inchide cererea
+ * `respinsa` fara sa scrie nimic. Ca in backend, motivul ramane pe rand si **nu** pleaca spre ecran:
+ * `CerereLimitaMasina.mesajEroare` nu este in `MasinaPwa`.
+ */
+const PLACUTE_AMBIGUE = new Set(["3"]);
+
+/** Cat timp mai pleaca raspunsul unei cereri inchise - `CereriLimitaMasina.OrePastrareRaspuns`. */
+const ORE_PASTRARE_RASPUNS = 24;
+
+export const limitRequests: LimitRequestRow[] = [];
+
+/** Cererile inca nedeschise - cele pe care backendul le intoarce in `limitaInAsteptare`. */
+export function openLimitRequests(): LimitRequestRow[] {
+  return limitRequests.filter((r) => r.state === "ceruta" || r.state === "trimisa");
+}
+
+export function openLimitRequest(carId: string, period: LimitPeriod): LimitRequestRow | undefined {
+  // Ordonate crescator dupa cerere, ca in backend: ultima pusa este cea mai recenta.
+  return openLimitRequests()
+    .filter((r) => r.carId === carId && r.period === period)
+    .pop();
+}
+
+export function addLimitRequest(car: Car, period: LimitPeriod, liters: number): LimitRequestRow {
+  const row: LimitRequestRow = {
+    id: `L${car.id}-${period}-${Date.now()}`,
+    carId: car.id,
+    period,
+    oldValue: carLimit(car, period),
+    newValue: liters,
+    state: "ceruta",
+    requestedAt: Date.now(),
+  };
+  limitRequests.push(row);
+  return row;
+}
+
+/**
+ * Ce face taskul programat: duce cererile coapte in portal si le inchide pe loc cu ce arata pagina
+ * dupa salvare - deci plafonul masinii se scrie **de aici**, din raspunsul portalului, nu din ce a
+ * tastat managerul.
+ *
+ * Merge lenes, la fiecare citire, nu pe un cronometru: un `setTimeout` la nivel de modul ar tine
+ * fila treaza si ar trebui oprit la descarcare, pentru exact acelasi rezultat.
+ */
+function settleLimitRequests() {
+  const scadente = openLimitRequests().filter((r) => Date.now() - r.requestedAt >= SETTLE_MS);
+  if (scadente.length === 0) return;
+
+  for (const row of scadente) {
+    // Refuzul nu scrie nimic: plafonul ramane cel vechi, exact ce vede si ecranul, care deduce
+    // raspunsul comparand valoarea ceruta cu cea de acum.
+    row.closedAt = Date.now();
+
+    if (PLACUTE_AMBIGUE.has(row.carId)) {
+      row.state = "respinsa";
+      // Acelasi text pe care il compune trimiterea din backend, ca ecranul sa arate la fel.
+      row.message =
+        "Placuta apare de doua ori in portal, pe doua inregistrari active, deci nu se stie" +
+        " careia ii apartine plafonul. Completati numarul de vehicul pe masina, din back-office.";
+      continue;
+    }
+
+    const car = cars.find((c) => c.id === row.carId);
+    row.state = "confirmata";
+    if (!car) continue;
+    if (row.period === "saptamanala") car.weeklyLimitLiters = row.newValue;
+    else if (row.period === "zilnica") car.dailyLimitLiters = row.newValue;
+    else car.limitLiters = row.newValue;
+  }
+  // Plafonul lunar s-a schimbat, deci si cat ar costa el.
+  recomputeEstimates();
+  persist();
+}
+
+/** Cererea deschisa a fiecarei masini, asezata pe `Car` exact cum o pune serverul in `MasinaPwa`. */
+function recomputePendingLimits() {
+  settleLimitRequests();
+
+  const deschise = new Map<string, LimitRequestRow>();
+  // Cand o masina are cereri deschise pe mai multe plafoane, campurile o poarta pe cea mai recenta.
+  for (const row of openLimitRequests()) deschise.set(row.carId, row);
+
+  // Ultima cerere inchisa de curand, pe fiecare masina - `CereriLimitaMasina.inchiseRecent`.
+  const deCand = Date.now() - ORE_PASTRARE_RASPUNS * 3600_000;
+  const inchise = new Map<string, LimitRequestRow>();
+  for (const row of limitRequests) {
+    if (row.closedAt == null || row.closedAt < deCand) continue;
+    const anterior = inchise.get(row.carId);
+    if (!anterior || row.closedAt >= (anterior.closedAt ?? 0)) inchise.set(row.carId, row);
+  }
+
+  for (const car of cars) {
+    const row = deschise.get(car.id);
+    car.pendingLimitLiters = row?.newValue;
+    car.pendingLimitPeriod = row?.period;
+    car.pendingLimitState = row?.state;
+
+    const raspuns = inchise.get(car.id);
+    car.limitAnswer = raspuns && {
+      period: raspuns.period,
+      liters: raspuns.newValue,
+      state: raspuns.state,
+      message: raspuns.message,
+      at: new Date(raspuns.closedAt!).toISOString(),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Documentele masinilor
 // ---------------------------------------------------------------------------
@@ -465,14 +676,19 @@ export function upsertCarDocument(row: Omit<CarDocumentRow, "id">): CarDocumentR
 // v2: `rovigneta` s-a redenumit `rovinieta` si id-urile au trecut de la numar la text.
 // v3: termenele masinii nu mai sunt date proprii, ci se deduc din documente - o masina salvata sub
 // v2 ar reveni cu date pe care niciun document nu le sustine.
-const STORE_KEY = "ge.data.v3";
+// v4: masinile poarta plafonul saptamanal, pe cel zilnic si estimarea in lei, iar coada de cereri
+// de plafon se salveaza si ea - o cerere in asteptare trebuie sa supravietuiasca unui refresh.
+const STORE_KEY = "ge.data.v4";
 
 export function persist() {
   if (typeof window === "undefined") return;
   try {
     // Continutul scanurilor nu pleaca in store: cateva MB de base64 ar depasi cota si ar pierde tot.
     const documents = carDocuments.map(({ contentBase64, ...row }) => row);
-    localStorage.setItem(STORE_KEY, JSON.stringify({ cars, transactions, documents }));
+    localStorage.setItem(
+      STORE_KEY,
+      JSON.stringify({ cars, transactions, documents, limits: limitRequests }),
+    );
   } catch {
     // Cota depasita sau serializare esuata - in prototip se ignora.
   }
@@ -487,16 +703,22 @@ function hydrate() {
       cars?: Car[];
       transactions?: Transaction[];
       documents?: CarDocumentRow[];
+      limits?: LimitRequestRow[];
     };
     if (Array.isArray(data.cars)) cars.splice(0, cars.length, ...data.cars);
     if (Array.isArray(data.transactions))
       transactions.splice(0, transactions.length, ...data.transactions);
     if (Array.isArray(data.documents))
       carDocuments.splice(0, carDocuments.length, ...data.documents);
+    if (Array.isArray(data.limits))
+      limitRequests.splice(0, limitRequests.length, ...data.limits);
     invoices = buildInvoices(transactions);
     recomputeUsed();
     // Termenele vin din documente, nu din masinile salvate - la fel ca in modul API.
     recomputeDocumentDates();
+    recomputeEstimates();
+    // O cerere coapta cat fila era inchisa se inchide acum, la prima citire.
+    recomputePendingLimits();
   } catch {
     // Store corupt - se ramane pe datele generate.
   }
@@ -510,7 +732,18 @@ export function nextCarId() {
 export function refreshDerived() {
   recomputeUsed();
   recomputeDocumentDates();
+  recomputeEstimates();
+  recomputePendingLimits();
   persist();
+}
+
+/**
+ * Ce se reaseaza inaintea unei **citiri**, nu a unei scrieri: coada de cereri se coace cu trecerea
+ * timpului, nu la o actiune a utilizatorului, deci starea corecta a plafoanelor se afla abia cand
+ * un ecran le cere.
+ */
+export function refreshLimits() {
+  recomputePendingLimits();
 }
 
 export type TransactionInput = {

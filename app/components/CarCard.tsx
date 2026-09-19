@@ -1,6 +1,13 @@
 import { Link } from "react-router";
 import { Badge, Card, Group, Progress, Stack, Text, ThemeIcon } from "@mantine/core";
-import { type Car, carHasExpiredDoc, isBlocked, NEAR_LIMIT } from "~/lib/fleet";
+import {
+  type Car,
+  carHasExpiredDoc,
+  formatLimitLiters,
+  isBlocked,
+  LIMIT_PERIOD_ADJECTIVE,
+  NEAR_LIMIT,
+} from "~/lib/fleet";
 import { formatLei, formatLiters } from "~/lib/format";
 
 const SEGMENT_GLYPH: Record<string, string> = {
@@ -116,6 +123,17 @@ export function CarCard({
                     {formatLei(car.usedLei ?? 0)}
                   </Text>
                 </Group>
+              )}
+
+              {/* O cerere in zbor se vede si din lista: altfel managerul o trimite, revine peste o
+                  ora si gaseste acelasi plafon, fara niciun semn ca a plecat ceva. */}
+              {car.pendingLimitLiters != null && (
+                <Text size="xs" c="orange.7" fw={600} truncate>
+                  ⏳ Plafon {LIMIT_PERIOD_ADJECTIVE[car.pendingLimitPeriod ?? "lunara"]} → {" "}
+                  {car.pendingLimitLiters === 0
+                    ? "fără plafon"
+                    : formatLimitLiters(car.pendingLimitLiters)}
+                </Text>
               )}
             </Stack>
           )}

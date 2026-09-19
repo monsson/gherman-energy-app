@@ -18,6 +18,7 @@ import { Async } from "~/components/Async";
 import { SupplierBadge } from "~/components/SupplierBadge";
 import { CarDocuments } from "~/components/CarDocuments";
 import { CarForm } from "~/components/CarForm";
+import { CarLimits } from "~/components/CarLimits";
 import {
   type CarDetail,
   daysAgo,
@@ -60,6 +61,12 @@ export default function CarDetailRoute() {
                 Editează mașina
               </Button>
             )}
+
+            <CarLimits
+              car={data}
+              canEdit={session.role === "manager"}
+              onRequested={car.reload}
+            />
 
             <CarDocuments
               car={data}
@@ -230,21 +237,6 @@ function Header({ car }: { car: CarDetail }) {
             <Text size="sm" fw={600}>
               {car.driverName}
               {car.driverCardMasked ? ` · card ${car.driverCardMasked}` : ""}
-            </Text>
-          </Group>
-        </>
-      )}
-      {car.limitLiters != null && (
-        <>
-          <Divider my="sm" />
-          <Group justify="space-between">
-            <Text size="sm" c="dimmed">
-              Plafon lunar
-            </Text>
-            <Text size="sm" fw={600}>
-              {car.limitLiters <= 1
-                ? "Blocată la alimentare"
-                : `${formatLiters(car.usedLiters ?? 0)} / ${formatLiters(car.limitLiters)}`}
             </Text>
           </Group>
         </>

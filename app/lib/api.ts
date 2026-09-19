@@ -338,6 +338,56 @@ export type CardPwa = {
   furnizor?: string;
 };
 
+/** Id-urile din `PerioadaLimita` - care dintre cele trei plafoane ale vehiculului. */
+export type PerioadaLimita = "lunara" | "saptamanala" | "zilnica";
+
+/**
+ * Id-urile din `StareCerereLimita`. Prin `MasinaPwa` ajung numai cele deschise (`ceruta`,
+ * `trimisa`): o cerere confirmata si-a scris deja valoarea in plafon, iar una respinsa nu mai
+ * asteapta nimic - amandoua lasa campurile goale.
+ */
+export type StareCerereLimita = "ceruta" | "trimisa" | "confirmata" | "respinsa";
+
+/**
+ * Oglinda lui `ro.gsdata.gp.pwa.EstimareLeiPwa` - cat ar costa plafonul in lei.
+ *
+ * **Estimare, nu plafon.** Nicaieri, nici in portal, nici in aplicatie, nu exista o limita in lei:
+ * cifra se obtine inmultind plafonul in litri cu pretul mediu platit la alimentari, deci se schimba
+ * odata cu pretul carburantului. Cele trei campuri vin impreuna tocmai ca estimarea sa poata fi
+ * aratata cu tot cu premisa ei - pretul si de unde vine.
+ *
+ * Lipseste cu totul cand masina nu are plafon lunar sau cand nu iese niciun pret.
+ */
+export type EstimareLeiPwa = {
+  /** Plafonul in lei: litrii inmultiti cu `pretLitru`, rotunjit la doi zecimali. */
+  valoare?: number;
+  /** Pretul mediu la litru din care s-a calculat, cu TVA, contract si discount deja in el. */
+  pretLitru?: number;
+  /** `masina_luna_curenta` / `masina_istoric` / `partener_istoric`, de la cel mai tare la cel mai slab. */
+  sursa?: string;
+};
+
+/**
+ * Oglinda lui `ro.gsdata.gp.pwa.RaspunsLimitaPwa` - ce a raspuns portalul la ultima cerere de plafon
+ * **inchisa** a masinii, daca s-a inchis in ultimele 24 de ore.
+ *
+ * Perechea campurilor `limitaInAsteptare` / `stareLimita`: acelea spun ce se asteapta, asta cum s-a
+ * terminat. Fara ea un refuz ar fi tacut - campurile de asteptare se golesc la fel si cand cererea
+ * a reusit, si cand portalul a refuzat-o.
+ */
+export type RaspunsLimitaPwa = {
+  /** Id din `PerioadaLimita` - al carui plafon a fost cererea. */
+  perioada?: string;
+  /** Plafonul cerut, in litri. Zero inseamna ca s-a cerut scoaterea plafonului. */
+  valoare?: number;
+  /** Id din `StareCerereLimita`: aici numai `confirmata` sau `respinsa`. */
+  stare?: string;
+  /** Motivul refuzului, scris in romana pentru utilizator. Lipseste pe o cerere confirmata. */
+  mesaj?: string;
+  /** `yyyy-MM-dd'T'HH:mm:ss` - cand s-a inchis cererea. */
+  data?: string;
+};
+
 /** Oglinda lui `ro.gsdata.gp.pwa.MasinaPwa`. */
 export type MasinaPwa = {
   id: string;
@@ -357,8 +407,32 @@ export type MasinaPwa = {
   soferNume?: string;
   /** Plafonul lunar adus din portal, **in litri**, pe masina (nu pe card, nu pe sofer). */
   limitaLunara?: number;
+  /**
+   * Celelalte doua plafoane ale vehiculului, din acelasi loc si in aceeasi unitate - portalul le
+   * tine pe toate trei pe pagina vehiculului, iar cel care opreste alimentarea este primul atins.
+   *
+   * Lipsesc la majoritatea masinilor, si acolo asta chiar inseamna **fara plafon pe perioada
+   * aceea**: numai ~100 de vehicule au plafon saptamanal sau zilnic.
+   */
+  limitaSaptamanala?: number;
+  limitaZilnica?: number;
+  /** Cat ar costa plafonul **lunar** in lei. Nu exista pe celelalte doua perioade. */
+  estimareLimitaLei?: EstimareLeiPwa;
   consumatLunaCurentaLitri?: number;
   consumatLunaCurentaLei?: number;
+  /**
+   * Plafonul cerut printr-o cerere care inca nu si-a primit raspunsul din portal, in litri.
+   *
+   * Se afiseaza **langa** plafonul curent, nu in locul lui: pana cand taskul programat duce cererea
+   * in portal si o reciteste pot trece ore, iar la pompa opreste tot valoarea veche.
+   */
+  limitaInAsteptare?: number;
+  /** Id din `StareCerereLimita`: aici numai `ceruta` sau `trimisa`. */
+  stareLimita?: string;
+  /** Id din `PerioadaLimita` - al carui plafon este cererea deschisa. */
+  perioadaLimitaInAsteptare?: string;
+  /** Raspunsul portalului la ultima cerere inchisa de curand. Lipseste, de obicei. */
+  raspunsLimita?: RaspunsLimitaPwa;
 };
 
 /** Oglinda lui `ro.gsdata.gp.pwa.ProfilPwa`. */
@@ -582,6 +656,37 @@ export function getDocumentMasina(idMasina: string, tip: string): Promise<Fisier
 export function incarcaDocumentMasina(document: DocumentMasinaFormPwa): Promise<MasinaPwa> {
   // Parametrul se numeste `document` in rest-services.xml, deci formul merge invelit.
   return postService<MasinaPwa>(FLOTA, "incarcaDocumentMasina", { document });
+}
+
+/**
+ * Oglinda lui `ro.gsdata.gp.pwa.LimitaMasinaFormPwa` - plafonul pe care un manager il **cere**.
+ *
+ * Nu este lipit pe `MasinaFormPwa`, desi amandoua descriu aceeasi masina: salvarea masinii scrie pe
+ * loc in baza, pe cand aici se creeaza doar o cerere, care ajunge in portal mai tarziu si poate fi
+ * respinsa acolo.
+ */
+export type LimitaMasinaFormPwa = {
+  idMasina: string;
+  /** Id din `PerioadaLimita`. Lasata goala inseamna plafonul lunar. */
+  perioada?: string;
+  /**
+   * Plafonul cerut, **in litri** - numele i-a ramas din prima versiune, dar poarta valoarea
+   * oricare ar fi perioada. Zero inseamna "fara plafon" (*Nelimitat* in portal), nu valoare lipsa.
+   */
+  limitaLunara: number;
+};
+
+/**
+ * Cere schimbarea unui plafon. **Doar rolul manager.**
+ *
+ * Nu schimba plafonul pe loc: coloanele de pe masina sunt copia portalului si se scriu numai din ce
+ * se citeste inapoi de pe pagina vehiculului. Apelul creeaza un rand `CerereLimitaMasina`, pe care
+ * un task programat il duce in portal, si intoarce masina cu `limitaInAsteptare`, `stareLimita` si
+ * `perioadaLimitaInAsteptare` completate.
+ */
+export function cereSchimbareLimita(limita: LimitaMasinaFormPwa): Promise<MasinaPwa> {
+  // Parametrul se numeste `limita` in rest-services.xml, deci formul merge invelit.
+  return postService<MasinaPwa>(FLOTA, "cereSchimbareLimita", { limita });
 }
 
 // ---------------------------------------------------------------- gp_PwaStatiiService

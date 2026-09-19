@@ -18,6 +18,12 @@ import type {
   Invoice,
   InvoiceDetail,
   InvoiceLine,
+  LeiEstimate,
+  LeiEstimateSource,
+  LimitAnswer,
+  LimitPeriod,
+  LimitRequest,
+  LimitRequestState,
   MonthSummary,
   Segment,
   Station,
@@ -38,6 +44,40 @@ function documentType(id?: string): CarDocumentType | undefined {
   return id === "itp" || id === "rca" || id === "rovinieta" ? id : undefined;
 }
 
+function limitPeriod(id?: string): LimitPeriod | undefined {
+  return id === "lunara" || id === "saptamanala" || id === "zilnica" ? id : undefined;
+}
+
+function limitState(id?: string): LimitRequestState | undefined {
+  return id === "ceruta" || id === "trimisa" || id === "confirmata" || id === "respinsa"
+    ? id
+    : undefined;
+}
+
+function estimateSource(id?: string): LeiEstimateSource | undefined {
+  return id === "masina_luna_curenta" || id === "masina_istoric" || id === "partener_istoric"
+    ? id
+    : undefined;
+}
+
+/** Lipseste cand masina nu a avut nicio cerere inchisa in fereastra serverului - cazul obisnuit. */
+function limitAnswer(dto?: api.RaspunsLimitaPwa): LimitAnswer | undefined {
+  if (!dto) return undefined;
+  return {
+    period: limitPeriod(dto.perioada),
+    liters: dto.valoare,
+    state: limitState(dto.stare),
+    message: dto.mesaj,
+    at: dto.data,
+  };
+}
+
+/** Lipseste cu totul cand masina nu are plafon lunar sau cand nu iese niciun pret din alimentari. */
+function leiEstimate(dto?: api.EstimareLeiPwa): LeiEstimate | undefined {
+  if (!dto) return undefined;
+  return { value: dto.valoare, pricePerLiter: dto.pretLitru, source: estimateSource(dto.sursa) };
+}
+
 function car(dto: api.MasinaPwa): Car {
   return {
     id: dto.id,
@@ -55,8 +95,15 @@ function car(dto: api.MasinaPwa): Car {
     rca: dto.rca,
     rovinieta: dto.rovinieta,
     limitLiters: dto.limitaLunara,
+    weeklyLimitLiters: dto.limitaSaptamanala,
+    dailyLimitLiters: dto.limitaZilnica,
+    limitEstimateLei: leiEstimate(dto.estimareLimitaLei),
     usedLiters: dto.consumatLunaCurentaLitri,
     usedLei: dto.consumatLunaCurentaLei,
+    pendingLimitLiters: dto.limitaInAsteptare,
+    pendingLimitPeriod: limitPeriod(dto.perioadaLimitaInAsteptare),
+    pendingLimitState: limitState(dto.stareLimita),
+    limitAnswer: limitAnswer(dto.raspunsLimita),
   };
 }
 
@@ -201,6 +248,20 @@ export const apiSource: FleetSource = {
         dataExpirare: input.expires,
         numeFisier: input.fileName,
         continutBase64: input.contentBase64,
+      }),
+    );
+  },
+
+  /**
+   * Cere schimbarea unui plafon. Plafonul masinii ramane neatins: se schimba doar cererea deschisa,
+   * pe care DTO-ul intors o poarta in `pendingLimit*`.
+   */
+  async requestLimitChange(input: LimitRequest) {
+    return car(
+      await api.cereSchimbareLimita({
+        idMasina: input.carId,
+        perioada: input.period,
+        limitaLunara: input.liters,
       }),
     );
   },
