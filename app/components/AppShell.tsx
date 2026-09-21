@@ -259,6 +259,19 @@ export function AppShell({
             Conectat ca <strong>{session.name ?? session.username}</strong>
             {session.partenerNume ? ` · ${session.partenerNume}` : ""}
           </Text>
+          {/* Ghidul sta aici, nu in bara de jos: pe telefon bara managerului are deja patru
+              intrari plus contul, iar ajutorul se cauta oricum la cont. */}
+          <Button
+            component={Link}
+            to="/guide"
+            variant="light"
+            fullWidth
+            fw={700}
+            leftSection={<span aria-hidden>📖</span>}
+            onClick={() => setAccountOpen(false)}
+          >
+            Ghid de utilizare
+          </Button>
           <Text size="xs" fw={700} tt="uppercase" c="gray.6" style={{ letterSpacing: "0.08em" }}>
             Schimbă parola
           </Text>

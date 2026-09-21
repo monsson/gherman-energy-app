@@ -12,5 +12,6 @@ export default [
     route("manager/station/:id", "routes/manager.station.tsx"),
     route("driver", "routes/driver.dashboard.tsx"),
     route("car/:id", "routes/car.detail.tsx"),
+    route("guide", "routes/guide.tsx"),
   ]),
 ] satisfies RouteConfig;
