@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Porneste RewriteValve pentru contextul asta; regulile sunt in `WEB-INF/rewrite.config`.
+
+  Tomcat citeste fisierul la deploy doar daca Host-ul are `deployXML="true"` (implicit). Daca
+  serverul l-a dezactivat, valva nu se incarca si ramane `error-page` din `WEB-INF/web.xml`.
+-->
+<Context>
+  <Valve className="org.apache.catalina.valves.rewrite.RewriteValve"/>
+</Context>

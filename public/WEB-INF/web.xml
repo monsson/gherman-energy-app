@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Descriptorul de webapp pentru Tomcat, acolo unde build-ul este copiat in `webapps/pwa/`.
+
+  Aplicatia este un SPA: rutele (`/manager`, `/car/:id`) exista doar in browser, nu si pe disc. La
+  refresh sau la un link direct, Tomcat cauta fisierul cu DefaultServlet, nu il gaseste si raspunde
+  404 - aplicatia nici nu apuca sa se incarce.
+
+  Fallback-ul se face in doua locuri, pentru ca oricare dintre ele poate lipsi:
+
+  1. RewriteValve (vezi `META-INF/context.xml` si `WEB-INF/rewrite.config`) - varianta buna, trimite
+     `index.html` cu status 200.
+  2. `error-page` de mai jos - plasa de siguranta, daca valva nu e incarcata (Host cu
+     `deployXML="false"` ignora `META-INF/context.xml`). Serveste acelasi `index.html`, dar cu
+     status 404; browserul il randeaza si routerul preia calea, exact ca `404.html` pe GitHub Pages.
+
+  `metadata-complete` opreste scanarea de adnotari la pornire - nu exista nicio clasa aici.
+-->
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                             http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0"
+         metadata-complete="true">
+
+  <display-name>Gherman Energy PWA</display-name>
+
+  <welcome-file-list>
+    <welcome-file>index.html</welcome-file>
+  </welcome-file-list>
+
+  <error-page>
+    <error-code>404</error-code>
+    <location>/index.html</location>
+  </error-page>
+</web-app>

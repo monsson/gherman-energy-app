@@ -1,0 +1,38 @@
+# Fallback SPA pentru Apache.
+#
+# Aplicatia este un SPA: rutele (`/manager`, `/car/:id`) exista doar in browser, nu si pe disc.
+# La un click, React Router le rezolva local si nu pleaca nicio cerere. La refresh sau la un link
+# direct, Apache cauta fisierul, nu il gaseste si raspunde 404 - aplicatia nici nu apuca sa se
+# incarce. Regula de mai jos ii serveste `index.html`, iar routerul preia calea din URL.
+#
+# `404.html` de langa `index.html` face acelasi lucru, dar e o conventie GitHub Pages; Apache il
+# ignora. Fisierul asta se copiaza automat in `build/client/` la `npm run build` (e in `public/`),
+# deci ajunge pe server odata cu restul build-ului.
+#
+# Prod ruleaza azi pe Tomcat, nu pe httpd - acolo lucreaza `WEB-INF/` si `META-INF/` de alaturi,
+# iar fisierul asta e inert. Conteaza doar daca httpd ajunge sa serveasca folderul de pe disc.
+#
+# Ca sa fie citit, directorul trebuie sa aiba `AllowOverride FileInfo` (sau `All`) in configuratia
+# Apache - implicit este `None`, si atunci fisierul e ignorat in tacere. Daca ai acces la vhost,
+# acelasi continut pus intr-un bloc `<Directory>` e de preferat: se citeste o singura data, nu la
+# fiecare cerere.
+
+# MultiViews ar rezolva /manager la un fisier apropiat ca nume inainte sa ajunga la rescriere.
+<IfModule mod_negotiation.c>
+  Options -MultiViews
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Fara subcale scrisa explicit: substitutia e relativa la directorul in care se afla fisierul,
+  # deci merge la fel sub `/pwa/`, sub `/gherman-energy-app/` sau in radacina domeniului. Daca
+  # aplicatia e montata printr-un Alias (calea din URL difera de folderul de pe disc), mod_rewrite
+  # nu poate deduce prefixul si trebuie sa il spui aici:
+  # RewriteBase /pwa/
+
+  # Fisierele si folderele care chiar exista (assets, favicon) se servesc normal.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . index.html [L]
+</IfModule>
