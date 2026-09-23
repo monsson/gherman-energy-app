@@ -3,7 +3,6 @@ import { Button, Chip, Group, Stack, Text, TextInput } from "@mantine/core";
 import { AppShell } from "~/components/AppShell";
 import { Async } from "~/components/Async";
 import { CarCard } from "~/components/CarCard";
-import { CarForm } from "~/components/CarForm";
 import { type Car, carHasExpiredDoc, isBlocked, isNearLimit, listCars, usageRatio } from "~/lib/fleet";
 import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
@@ -19,7 +18,6 @@ export default function ManagerCarsRoute() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [shown, setShown] = useState(PAGE);
-  const [formOpen, setFormOpen] = useState(false);
 
   function matches(car: Car) {
     if (filter === "expired" && !carHasExpiredDoc(car)) return false;
@@ -35,17 +33,6 @@ export default function ManagerCarsRoute() {
 
   return (
     <AppShell session={session} title="Toate mașinile" back="/manager">
-      <Button
-        size="md"
-        fullWidth
-        fw={700}
-        mb="md"
-        leftSection={<span aria-hidden>＋</span>}
-        onClick={() => setFormOpen(true)}
-      >
-        Mașină nouă
-      </Button>
-
       <Async resource={cars}>
         {(list) => {
           let filtered = list.filter(matches);
@@ -125,8 +112,6 @@ export default function ManagerCarsRoute() {
           );
         }}
       </Async>
-
-      <CarForm opened={formOpen} onClose={() => setFormOpen(false)} onSaved={cars.reload} />
     </AppShell>
   );
 }

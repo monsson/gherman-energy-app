@@ -190,11 +190,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           ["**Expirat**, chenar roșu", "Cel puțin un document (ITP, RCA, rovinietă) a expirat."],
         ],
       },
-      { kind: "h3", id: "flota-masina-noua", text: "Mașină nouă și editare" },
+      { kind: "h3", id: "flota-editare", text: "Editarea unei mașini" },
       {
         kind: "p",
         text:
-          "**Mașină nouă**, deasupra listei, deschide formularul: **Număr înmatriculare**, **Marca** și **Model** (obligatorii), apoi **An fabricație**, **Segment**, **Combustibil** și **Șofer asignat**. Un număr de înmatriculare deja folosit este refuzat. Aceleași câmpuri se schimbă cu **Editează mașina** din fișa mașinii.",
+          "**Editează mașina**, din fișa mașinii, deschide formularul: **Marca** și **Model** (obligatorii), apoi **An fabricație**, **Segment**, **Combustibil** și **Șofer asignat**. **Numărul de înmatriculare** se vede, dar nu se poate schimba: mașinile vin din portal, iar un număr schimbat aici ar rupe legătura cu vehiculul de acolo. Mașinile nu se adaugă din aplicație — o mașină nouă apare după ce este înregistrată în portal.",
       },
       {
         kind: "note",

@@ -33,8 +33,9 @@ const FUELS = (["benzina", "motorina"] as FuelType[]).map((v) => ({
   label: FUEL_LABEL[v],
 }));
 
+// Numarul de inmatriculare nu e camp de formular: masinile vin din portal, iar un numar schimbat
+// aici ar rupe legatura cu vehiculul de acolo. Se afiseaza, nu se editeaza.
 type FormState = {
-  plate: string;
   brand: string;
   model: string;
   year: number | "";
@@ -45,7 +46,6 @@ type FormState = {
 
 function fromCar(car: Car): FormState {
   return {
-    plate: car.plate,
     brand: car.brand ?? "",
     model: car.model ?? "",
     year: car.year ?? "",
@@ -55,18 +55,7 @@ function fromCar(car: Car): FormState {
   };
 }
 
-function blank(): FormState {
-  return {
-    plate: "",
-    brand: "",
-    model: "",
-    year: "",
-    segment: "",
-    fuel: "",
-    driverId: "",
-  };
-}
-
+/** Doar editare: masinile se adauga in portal, nu aici. */
 export function CarForm({
   opened,
   onClose,
@@ -75,10 +64,10 @@ export function CarForm({
 }: {
   opened: boolean;
   onClose: () => void;
-  car?: Car; // prezent → editare, absent → creare
+  car: Car;
   onSaved?: (saved: Car) => void;
 }) {
-  const [form, setForm] = useState<FormState>(() => (car ? fromCar(car) : blank()));
+  const [form, setForm] = useState<FormState>(() => fromCar(car));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const drivers = useResource(() => listDrivers(), [opened]);
@@ -86,7 +75,7 @@ export function CarForm({
   // Formul se reaseaza de fiecare data cand modalul se deschide pentru alta masina.
   useEffect(() => {
     if (opened) {
-      setForm(car ? fromCar(car) : blank());
+      setForm(fromCar(car));
       setError(null);
     }
   }, [opened, car]);
@@ -97,15 +86,15 @@ export function CarForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    // Backendul refuza aceleasi trei campuri; verificarea locala scuteste drumul.
-    if (!form.plate.trim() || !form.brand.trim() || !form.model.trim()) {
-      setError("Completează numărul, marca și modelul.");
+    // Backendul refuza aceleasi campuri; verificarea locala scuteste drumul.
+    if (!form.brand.trim() || !form.model.trim()) {
+      setError("Completează marca și modelul.");
       return;
     }
 
     const payload: CarInput = {
-      id: car?.id,
-      plate: form.plate.trim().toUpperCase(),
+      id: car.id,
+      plate: car.plate,
       brand: form.brand.trim(),
       model: form.model.trim(),
       year: form.year === "" ? undefined : Number(form.year),
@@ -121,8 +110,8 @@ export function CarForm({
       onSaved?.(saved);
       onClose();
     } catch (err) {
-      // Mesajul vine de la server, scris pentru utilizator: numar deja folosit, sofer din alt
-      // partener, rol fara drept de scriere.
+      // Mesajul vine de la server, scris pentru utilizator: sofer din alt partener, rol fara
+      // drept de scriere.
       setError(err instanceof Error ? err.message : "Mașina nu a putut fi salvată.");
     } finally {
       setBusy(false);
@@ -130,21 +119,15 @@ export function CarForm({
   }
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={car ? "Editează mașina" : "Mașină nouă"}
-      centered
-      radius="lg"
-    >
+    <Modal opened={opened} onClose={onClose} title="Editează mașina" centered radius="lg">
       <form onSubmit={submit}>
         <Stack gap="sm">
           <TextInput
             label="Număr înmatriculare"
-            placeholder="CT12ABC"
-            value={form.plate}
-            onChange={(e) => set("plate", e.currentTarget.value)}
-            required
+            description="Vine din portal și nu se poate modifica."
+            value={car.plate}
+            variant="filled"
+            readOnly
           />
           <Group grow>
             <TextInput
@@ -200,19 +183,17 @@ export function CarForm({
           </Group>
           {/* Termenele ITP / RCA / rovinieta nu mai sunt campuri pe masina: se deduc din documente
               si se schimba doar incarcand un scan, in sectiunea "Documente" a masinii. */}
-          {car && (
-            <Text size="xs" c="dimmed">
-              Termenele ITP, RCA și rovinietă vin din documentele mașinii. Se schimbă încărcând
-              documentul, în secțiunea <b>Documente</b>.
-            </Text>
-          )}
+          <Text size="xs" c="dimmed">
+            Termenele ITP, RCA și rovinietă vin din documentele mașinii. Se schimbă încărcând
+            documentul, în secțiunea <b>Documente</b>.
+          </Text>
           {error && (
             <Alert color="red" variant="light" py="xs">
               {error}
             </Alert>
           )}
           <Button type="submit" fw={700} loading={busy}>
-            {car ? "Salvează modificările" : "Adaugă mașina"}
+            Salvează modificările
           </Button>
         </Stack>
       </form>
