@@ -689,6 +689,40 @@ export function cereSchimbareLimita(limita: LimitaMasinaFormPwa): Promise<Masina
   return postService<MasinaPwa>(FLOTA, "cereSchimbareLimita", { limita });
 }
 
+/** `LimitaFlotaPwa.StareLimitata` / `StareNelimitata` / `StareBlocata`. */
+export type StareLimitaFlota = "limitata" | "nelimitata" | "blocata";
+
+/**
+ * Oglinda lui `ro.gsdata.gp.pwa.LimitaFlotaPwa` - limita de credit a unei flote in portalul
+ * FillAndGo, **in lei**, nu in litri ca plafoanele masinilor.
+ *
+ * Este o copie a portalului, recitita de un task la fiecare jumatate de ora, deci `dataCitire` spune
+ * din ce moment sunt cifrele si trebuie afisata langa sold.
+ */
+export type LimitaFlotaPwa = {
+  numeFlota?: string;
+  stare?: string;
+  /** Zero pe `nelimitata`, 0.01 pe o flota barata - cifra portalului, nu un plafon real acolo. */
+  limita?: number;
+  /** Cat mai poate consuma flota. **Poate fi negativ**: limita coborata dupa consum. Numai pe `limitata`. */
+  ramas?: number;
+  /** Limita minus ramas; iese peste limita cand `ramas` e negativ. Numai pe `limitata`. */
+  consumat?: number;
+  numarVehicule?: number;
+  /** `yyyy-MM-dd'T'HH:mm:ss`, fara fus - ora serverului. */
+  dataCitire?: string;
+};
+
+/**
+ * Limitele de credit ale flotelor partenerului, ordonate dupa nume. **Doar rolul manager.**
+ *
+ * Un partener poate avea mai multe flote in portal, deci vine o lista. Nu citeste portalul la apel,
+ * ci copia din baza; un partener fara flota identificata primeste lista goala, fara eroare.
+ */
+export function getLimiteFlota(): Promise<LimitaFlotaPwa[]> {
+  return listService<LimitaFlotaPwa>(FLOTA, "getLimiteFlota");
+}
+
 // ---------------------------------------------------------------- gp_PwaStatiiService
 
 /** Oglinda lui `ro.gsdata.gp.pwa.StatiePwa`. */

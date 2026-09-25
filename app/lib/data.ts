@@ -13,6 +13,7 @@ import type {
   Car,
   CarDocumentType,
   Driver,
+  FleetLimit,
   FuelType,
   Invoice,
   InvoiceLine,
@@ -744,6 +745,74 @@ export function refreshDerived() {
  */
 export function refreshLimits() {
   recomputePendingLimits();
+}
+
+// ---------------------------------------------------------------------------
+// Limita de credit a flotei
+// ---------------------------------------------------------------------------
+
+/** Ca `PwaFlotaServiceBean.FormatDataOra`: ora locala, fara fus. */
+function localDateTime(d: Date) {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` +
+    `T${p(d.getHours())}:${p(d.getMinutes())}:00`
+  );
+}
+
+/** Ultima rulare a taskului `proceseazaLimiteFlote` (`0 10,40 * * * *`) dinaintea momentului dat. */
+function lastFleetLimitRead(now = new Date()): Date {
+  const d = new Date(now);
+  d.setSeconds(0, 0);
+  const m = d.getMinutes();
+  if (m >= 40) d.setMinutes(40);
+  else if (m >= 10) d.setMinutes(10);
+  else {
+    d.setHours(d.getHours() - 1);
+    d.setMinutes(40);
+  }
+  return d;
+}
+
+/**
+ * Flotele partenerului demo in portal, ca `gp_FlotaFillGo`.
+ *
+ * Doua, fiindca asa arata partenerii reali care au mai multe (`ROYAL ENGINEERING` /
+ * `ROYAL ENGINEERING SRL`): una cu limita, una *Nelimitat*. Consumul flotei cu limita este cel al
+ * lunii curente din alimentarile demo, iar limita se aseaza peste el cu o marja, ca bara sa arate o
+ * flota in regula - la inceput de luna consumul ar fi aproape zero si bara goala.
+ *
+ * Se calculeaza la citire, nu la incarcare: o alimentare adaugata in demo scade soldul, ca in portal.
+ */
+export function fleetLimits(): FleetLimit[] {
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const used =
+    Math.round(
+      transactions
+        .filter((t) => (t.date ?? "") >= monthStart)
+        .reduce((sum, t) => sum + (t.total ?? 0), 0) * 100,
+    ) / 100;
+  const limit = Math.max(20_000, Math.ceil(used / 0.62 / 1000) * 1000);
+  const readAt = localDateTime(lastFleetLimitRead());
+
+  return [
+    {
+      fleetName: "GHERMAN ENERGY",
+      state: "limitata",
+      limitLei: limit,
+      remainingLei: Math.round((limit - used) * 100) / 100,
+      usedLei: used,
+      vehicles: cars.length - 2,
+      readAt,
+    },
+    {
+      fleetName: "GHERMAN ENERGY SRL",
+      state: "nelimitata",
+      limitLei: 0,
+      vehicles: 2,
+      readAt,
+    },
+  ];
 }
 
 export type TransactionInput = {

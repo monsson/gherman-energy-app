@@ -282,6 +282,33 @@ export type LimitRequest = {
   liters: number;
 };
 
+/**
+ * `blocata` inseamna cont blocat sau limita simbolica de 0.01 lei (*Alimentari blocate* in portal).
+ * Spre deosebire de masini, 1.00 **nu** este o blocare aici: portalul il arata ca plafon de un leu.
+ */
+export type FleetLimitState = "limitata" | "nelimitata" | "blocata";
+
+/**
+ * Limita de credit a unei flote la Rompetrol - creditul pe care Gherman Energy il da clientului.
+ *
+ * **In lei**, nu in litri: nu are legatura cu plafoanele masinilor si nu se aduna din ele. Cifrele
+ * sunt o copie a portalului recitita periodic, deci `readAt` merge afisat langa sold - o alimentare
+ * facuta acum scade limita in portal pe loc, dar aici abia la citirea urmatoare.
+ */
+export type FleetLimit = {
+  fleetName: string;
+  /** Lipseste doar pe un id pe care frontendul nu il cunoaste. */
+  state?: FleetLimitState;
+  limitLei?: number;
+  /** Cat mai poate consuma flota. **Poate fi negativ** - limita a fost coborata dupa consum. */
+  remainingLei?: number;
+  /** Fara perioada: portalul nu spune cand se reface limita, deci ecranul nu numeste luna. */
+  usedLei?: number;
+  vehicles?: number;
+  /** ISO, cu ora - momentul citirii din portal. */
+  readAt?: string;
+};
+
 export type TransactionFilter = {
   carId?: string;
   stationId?: string;
@@ -302,6 +329,7 @@ export type FleetSource = {
   downloadCarDocument(carId: string, type: CarDocumentType): Promise<void>;
   uploadCarDocument(input: CarDocumentUpload): Promise<Car>;
   requestLimitChange(input: LimitRequest): Promise<Car>;
+  listFleetLimits(): Promise<FleetLimit[]>;
   listTransactions(filter: TransactionFilter): Promise<Transaction[]>;
   monthlySummary(carId?: string, months?: number): Promise<MonthSummary[]>;
   listStations(): Promise<Station[]>;
@@ -391,6 +419,9 @@ export async function uploadCarDocument(input: CarDocumentUpload) {
 }
 export async function requestLimitChange(input: LimitRequest) {
   return (await source()).requestLimitChange(input);
+}
+export async function listFleetLimits() {
+  return (await source()).listFleetLimits();
 }
 export async function listTransactions(filter: TransactionFilter = {}) {
   return (await source()).listTransactions(filter);
@@ -663,6 +694,37 @@ export function formatLimitLiters(liters: number): string {
 export function isNearLimit(car: Car): boolean {
   const ratio = usageRatio(car);
   return ratio != null && ratio >= NEAR_LIMIT;
+}
+
+// ---------------------------------------------------------------- limita de credit a flotei
+
+export const FLEET_LIMIT_STATE_LABEL: Record<FleetLimitState, string> = {
+  limitata: "Cu limită",
+  nelimitata: "Fără limită",
+  blocata: "Alimentări blocate",
+};
+
+/**
+ * Taskul reciteste limitele la fiecare jumatate de ora. Peste doua ore fara citire inseamna ca s-au
+ * oprit - task picat, sau flota a disparut din portal si si-a pastrat ultima citire - deci soldul nu
+ * mai poate fi luat drept aproape de cel real.
+ */
+export const FLEET_LIMIT_STALE_MS = 2 * 60 * 60 * 1000;
+
+export function isFleetLimitStale(limit: FleetLimit, now = Date.now()): boolean {
+  if (!limit.readAt) return false;
+  const at = new Date(limit.readAt).getTime();
+  return !Number.isNaN(at) && now - at > FLEET_LIMIT_STALE_MS;
+}
+
+/**
+ * Cat din limita s-a consumat, ca raport. Poate trece de 1 - o flota cu `remainingLei` negativ a
+ * consumat mai mult decat limita, si asa trebuie aratat. `null` fara o limita din care sa se consume.
+ */
+export function fleetUsageRatio(limit: FleetLimit): number | null {
+  if (limit.state !== "limitata" || !limit.limitLei || limit.limitLei <= 0) return null;
+  if (limit.usedLei == null) return null;
+  return limit.usedLei / limit.limitLei;
 }
 
 export const FUEL_LABEL: Record<FuelType, string> = {

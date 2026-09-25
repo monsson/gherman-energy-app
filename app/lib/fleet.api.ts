@@ -13,6 +13,8 @@ import type {
   CarDocumentUpload,
   CarInput,
   Driver,
+  FleetLimit,
+  FleetLimitState,
   FleetSource,
   FuelType,
   Invoice,
@@ -58,6 +60,22 @@ function estimateSource(id?: string): LeiEstimateSource | undefined {
   return id === "masina_luna_curenta" || id === "masina_istoric" || id === "partener_istoric"
     ? id
     : undefined;
+}
+
+function fleetLimitState(id?: string): FleetLimitState | undefined {
+  return id === "limitata" || id === "nelimitata" || id === "blocata" ? id : undefined;
+}
+
+function fleetLimit(dto: api.LimitaFlotaPwa): FleetLimit {
+  return {
+    fleetName: dto.numeFlota ?? "—",
+    state: fleetLimitState(dto.stare),
+    limitLei: dto.limita,
+    remainingLei: dto.ramas,
+    usedLei: dto.consumat,
+    vehicles: dto.numarVehicule,
+    readAt: dto.dataCitire,
+  };
 }
 
 /** Lipseste cand masina nu a avut nicio cerere inchisa in fereastra serverului - cazul obisnuit. */
@@ -264,6 +282,10 @@ export const apiSource: FleetSource = {
         limitaLunara: input.liters,
       }),
     );
+  },
+
+  async listFleetLimits() {
+    return (await api.getLimiteFlota()).map(fleetLimit);
   },
 
   async listTransactions(filter: TransactionFilter) {

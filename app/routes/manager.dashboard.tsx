@@ -15,7 +15,15 @@ import { AppShell, Section } from "~/components/AppShell";
 import { Async } from "~/components/Async";
 import { SupplierBadge } from "~/components/SupplierBadge";
 import { CarCard } from "~/components/CarCard";
-import { carHasExpiredDoc, listCars, listStations, monthlySummary, recent } from "~/lib/fleet";
+import { FleetLimitCard } from "~/components/FleetLimitCard";
+import {
+  carHasExpiredDoc,
+  listCars,
+  listFleetLimits,
+  listStations,
+  monthlySummary,
+  recent,
+} from "~/lib/fleet";
 import { formatLei, formatLiters, formatMonth } from "~/lib/format";
 import { useResource } from "~/lib/useResource";
 import { useSession } from "./auth-layout";
@@ -29,9 +37,31 @@ export default function ManagerDashboard() {
   const cars = useResource(() => listCars(), []);
   const txs = useResource(() => recent({ limit: 5 }), []);
   const stations = useResource(() => listStations(), []);
+  const fleetLimits = useResource(() => listFleetLimits(), []);
 
   return (
     <AppShell session={session} title={`Salut, ${session.name ?? "Fleet Manager"}`}>
+      {/* Un partener fara flota identificata in portal primeste lista goala, fara eroare - atunci
+          sectiunea nu are ce spune si lipseste, in loc sa arate un "fara date" pe care managerul
+          nu il poate repara. Asocierea se face in back-office. */}
+      {fleetLimits.data?.length !== 0 && (
+        <Section title="Limita de credit">
+          <Async resource={fleetLimits}>
+            {(list) => (
+              <Stack gap="xs">
+                {list.map((l) => (
+                  <FleetLimitCard key={l.fleetName} limit={l} />
+                ))}
+                <Text size="xs" c="dimmed">
+                  Soldul flotei în portalul Rompetrol, în lei. Se recitește la fiecare jumătate de
+                  oră, deci alimentările de după ora citirii nu sunt încă scăzute.
+                </Text>
+              </Stack>
+            )}
+          </Async>
+        </Section>
+      )}
+
       <Async resource={summary}>
         {(months) => {
           const liters = months.reduce((s, m) => s + m.liters, 0);

@@ -126,7 +126,31 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         kind: "p",
         text:
-          "Ecranul **Acasă** al managerului adună într-o singură pagină cheltuiala flotei, mașinile care au nevoie de atenție și ultimele alimentări. Totul de aici se poate deschide mai departe, cu **Vezi toate →** sau atingând un rând.",
+          "Ecranul **Acasă** al managerului adună într-o singură pagină limita de credit, cheltuiala flotei, mașinile care au nevoie de atenție și ultimele alimentări. Totul de aici se poate deschide mai departe, cu **Vezi toate →** sau atingând un rând.",
+      },
+      { kind: "h3", id: "panou-limita-credit", text: "Limita de credit" },
+      {
+        kind: "p",
+        text:
+          "Primul card arată **creditul flotei în portalul Rompetrol**, în lei: **Rămas** (cât mai poate alimenta flota), bara consumului și **Consumat … din …**. Dacă firma are mai multe flote în portal, fiecare are cardul ei. Secțiunea lipsește când flota firmei nu a fost încă asociată în portal.",
+      },
+      {
+        kind: "table",
+        head: ["Ce vezi", "Ce înseamnă"],
+        rows: [
+          ["Bară verde", "Limita este în regulă."],
+          ["**Aproape de limită** (portocaliu)", "S-a consumat peste 80% din limită."],
+          ["**Limită epuizată** (roșu), **Depășită cu …**", "Nu a mai rămas credit; o sumă depășită apare când limita a fost coborâtă după consum. Alimentările se opresc la pompă."],
+          ["**Alimentări blocate** (roșu)", "Portalul a oprit alimentările pe toată flota. Contactează Gherman Energy."],
+          ["**Fără limită**", "Flota nu are limită de credit în portal."],
+        ],
+      },
+      {
+        kind: "note",
+        tone: "info",
+        title: "Soldul nu este în timp real",
+        text:
+          "Cifrele se recitesc din portal la fiecare jumătate de oră; ora citirii este scrisă sub fiecare card. O alimentare făcută acum scade creditul în portal imediat, dar aici abia la citirea următoare. Dacă ora citirii apare cu portocaliu, **citire veche**, cifrele nu s-au mai actualizat de peste două ore. Limita de credit este în lei și nu are legătură cu plafoanele în litri ale mașinilor.",
       },
       { kind: "h3", id: "panou-sumar", text: "Sumar 6 luni și grafice" },
       {

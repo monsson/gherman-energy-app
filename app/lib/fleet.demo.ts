@@ -14,6 +14,7 @@ import {
   carDocuments,
   cars,
   drivers,
+  fleetLimits,
   invoices,
   nextCarId,
   refreshDerived,
@@ -275,6 +276,12 @@ export const demoSource: FleetSource = {
     addLimitRequest(car, input.period, liters);
     refreshDerived();
     return { ...car };
+  },
+
+  /** Limita este creditul partenerului, nu o informatie de sofer - refuz ca in serviciu. */
+  async listFleetLimits() {
+    if (currentDriverId()) throw new Error("Doar un manager de flotă vede limita flotei.");
+    return fleetLimits();
   },
 
   async listTransactions(filter: TransactionFilter) {
